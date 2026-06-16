@@ -3,14 +3,14 @@ import splashImage from '@/assets/images/brand/splashImg.png'
 </script>
 
 <template>
-  <section class="splash-page" aria-label="UniverseKeeper">
+  <RouterLink class="splash-page" to="/login" aria-label="로그인 화면으로 이동">
     <p class="splash-page__message">
       작가님의 세계가 무너지지 않도록<br />
       설정과 원고를 함께 지켜드립니다.
     </p>
     <img class="splash-page__image" :src="splashImage" alt="UniverseKeeper UVK" />
     <p class="splash-page__prompt">화면을 <strong>터치해주세요</strong>.</p>
-  </section>
+  </RouterLink>
 </template>
 
 <style scoped>
@@ -25,6 +25,8 @@ import splashImage from '@/assets/images/brand/splashImg.png'
   overflow: hidden;
   background: #fefefe;
   font-family: var(--font-family-base);
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .splash-page__message,
