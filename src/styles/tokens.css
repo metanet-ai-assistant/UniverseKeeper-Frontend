@@ -1,0 +1,13 @@
+:root {
+  color-scheme: light;
+
+  --font-family-base: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --color-app-canvas: #fefefe;
+  --color-surface-primary: #fefefe;
+  --color-text-primary: #17233c;
+  --color-text-secondary: #54627a;
+  --color-brand-blue: #439bff;
+  --color-brand-lime: #d9f012;
+  --color-line-soft: rgba(23, 35, 60, 0.1);
+}
