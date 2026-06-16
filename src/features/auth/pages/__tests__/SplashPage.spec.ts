@@ -5,10 +5,20 @@ import SplashPage from '../SplashPage.vue'
 
 describe('SplashPage', () => {
   it('renders the UniverseKeeper splash content', () => {
-    const wrapper = mount(SplashPage)
+    const wrapper = mount(SplashPage, {
+      global: {
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="to"><slot /></a>',
+          },
+        },
+      },
+    })
 
     expect(wrapper.get('img').attributes('alt')).toBe('UniverseKeeper UVK')
     expect(wrapper.text()).toContain('작가님의 세계가 무너지지 않도록')
     expect(wrapper.text()).toContain('화면을 터치해주세요.')
+    expect(wrapper.get('a').attributes('href')).toBe('/login')
   })
 })

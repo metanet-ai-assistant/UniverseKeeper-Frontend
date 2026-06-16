@@ -12,6 +12,21 @@ const router = createRouter({
       name: 'splash',
       component: () => import('@/features/auth/pages/SplashPage.vue'),
     },
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/features/auth/pages/LoginPage.vue'),
+    },
+    {
+      path: '/join',
+      name: 'join',
+      component: () => import('@/features/auth/pages/JoinPage.vue'),
+    },
+    {
+      path: '/findpw',
+      name: 'find-password',
+      component: () => import('@/features/auth/pages/FindPasswordPage.vue'),
+    },
   ],
 })
 
