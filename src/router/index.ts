@@ -32,6 +32,11 @@ const router = createRouter({
       name: 'workspace-list',
       component: () => import('@/features/workspace/pages/WorkspaceListPage.vue'),
     },
+    {
+      path: '/workspaces/new',
+      name: 'workspace-new',
+      component: () => import('@/features/workspace/pages/NewWorkspacePage.vue'),
+    },
   ],
 })
 
