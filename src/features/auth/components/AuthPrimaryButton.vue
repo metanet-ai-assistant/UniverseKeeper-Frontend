@@ -1,11 +1,15 @@
 <script setup lang="ts">
 defineProps<{
   label: string
+  disabled?: boolean
+  type?: 'button' | 'submit'
 }>()
 </script>
 
 <template>
-  <button class="auth-primary-button" type="button">{{ label }}</button>
+  <button class="auth-primary-button" :disabled="disabled" :type="type ?? 'button'">
+    {{ label }}
+  </button>
 </template>
 
 <style scoped>
@@ -26,5 +30,10 @@ defineProps<{
   line-height: 1;
   letter-spacing: 0;
   cursor: pointer;
+}
+
+.auth-primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 </style>
