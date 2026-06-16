@@ -44,3 +44,12 @@ test('moves from find password to password reset state', async ({ page }) => {
   await expect(page.getByPlaceholder('새로운 비밀번호를 입력')).toBeVisible()
   await expect(page.getByPlaceholder('비밀번호를 재확인')).toBeVisible()
 })
+test('shows workspace list with mock data', async ({ page }) => {
+  await page.setViewportSize({ width: 402, height: 874 })
+  await page.goto('/workspaces')
+
+  await expect(page.getByRole('heading', { name: /전찬혁 작가님/ })).toBeVisible()
+  await expect(page.getByText('별이 꺼진 후의 기록작')).toBeVisible()
+  await expect(page.getByText('미검토 2건')).toBeVisible()
+  await expect(page.getByRole('link', { name: /새 작품/ })).toBeVisible()
+})

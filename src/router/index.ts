@@ -27,6 +27,11 @@ const router = createRouter({
       name: 'find-password',
       component: () => import('@/features/auth/pages/FindPasswordPage.vue'),
     },
+    {
+      path: '/workspaces',
+      name: 'workspace-list',
+      component: () => import('@/features/workspace/pages/WorkspaceListPage.vue'),
+    },
   ],
 })
 

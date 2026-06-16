@@ -6,6 +6,8 @@ import FindPasswordPage from '../FindPasswordPage.vue'
 import JoinPage from '../JoinPage.vue'
 import LoginPage from '../LoginPage.vue'
 
+const pushMock = vi.hoisted(() => vi.fn<() => Promise<void> | void>())
+
 vi.mock('@/features/auth/api/authApi', () => ({
   login: vi.fn<
     (payload: { email: string; password: string }) => Promise<{
@@ -32,6 +34,17 @@ vi.mock('@/features/auth/api/authApi', () => ({
   >(),
 }))
 
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+
+  return {
+    ...actual,
+    useRouter: () => ({
+      push: pushMock,
+    }),
+  }
+})
+
 const routerLinkStub = {
   props: ['to'],
   template: '<a :href="to"><slot /></a>',
@@ -40,6 +53,7 @@ const routerLinkStub = {
 describe('Auth pages', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    pushMock.mockReset()
     localStorage.clear()
   })
 
@@ -86,6 +100,7 @@ describe('Auth pages', () => {
     expect(localStorage.getItem('uvk.accessToken')).toBe('access-token')
     expect(localStorage.getItem('uvk.refreshToken')).toBe('refresh-token')
     expect(wrapper.text()).toContain('로그인되었습니다.')
+    expect(pushMock).toHaveBeenCalledWith('/workspaces')
   })
 
   it('renders join form fields and error messages', async () => {
