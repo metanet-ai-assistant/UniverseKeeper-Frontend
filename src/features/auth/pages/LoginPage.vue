@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { login, resolveAuthError } from '@/features/auth/api/authApi'
 import AuthLogo from '@/features/auth/components/AuthLogo.vue'
@@ -7,6 +8,7 @@ import AuthPrimaryButton from '@/features/auth/components/AuthPrimaryButton.vue'
 import AuthTextInput from '@/features/auth/components/AuthTextInput.vue'
 import { saveAuthTokens } from '@/features/auth/services/authSession'
 
+const router = useRouter()
 const email = ref('')
 const password = ref('')
 const feedbackMessage = ref('')
@@ -37,6 +39,7 @@ async function handleLogin() {
     saveAuthTokens(tokens)
     feedbackTone.value = 'success'
     feedbackMessage.value = '로그인되었습니다.'
+    await router.push('/workspaces')
   } catch (error) {
     feedbackTone.value = 'danger'
     feedbackMessage.value = resolveAuthError(error, '이메일 또는 비밀번호를 확인해주세요.')
