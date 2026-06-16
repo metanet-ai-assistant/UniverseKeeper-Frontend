@@ -28,6 +28,19 @@ test('shows join error messages after submit', async ({ page }) => {
   await page.getByRole('button', { name: '회원가입' }).click()
 
   await expect(page.getByText('*이메일 형식이 아닙니다.')).toBeVisible()
-  await expect(page.getByText('*인증번호가 틀렸습니다.')).toBeVisible()
+  await expect(page.getByText('*영어, 숫자, 특수문자 사용, 8자리 이상')).toBeVisible()
   await expect(page.getByText('*비밀번호가 일치하지 않습니다.')).toBeVisible()
+  await expect(page.getByText('*닉네임을 입력해주세요.')).toBeVisible()
+})
+
+test('moves from find password to password reset state', async ({ page }) => {
+  await page.setViewportSize({ width: 402, height: 874 })
+  await page.goto('/findpw')
+
+  await page.getByPlaceholder('이메일(아이디)을 입력해주세요').fill('user@example.com')
+  await page.getByRole('button', { name: '인증번호 전송' }).click()
+
+  await expect(page.getByRole('heading', { name: '비밀번호 재설정' })).toBeVisible()
+  await expect(page.getByPlaceholder('새로운 비밀번호를 입력')).toBeVisible()
+  await expect(page.getByPlaceholder('비밀번호를 재확인')).toBeVisible()
 })

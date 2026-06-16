@@ -1,8 +1,13 @@
 <script setup lang="ts">
+const modelValue = defineModel<string>({ default: '' })
+
 defineProps<{
   label: string
   placeholder: string
+  autocomplete?: string
+  disabled?: boolean
   message?: string
+  name?: string
   tone?: 'default' | 'danger'
   type?: 'email' | 'password' | 'text'
 }>()
@@ -11,7 +16,15 @@ defineProps<{
 <template>
   <label class="auth-text-input">
     <span class="auth-text-input__label">{{ label }}</span>
-    <input class="auth-text-input__control" :type="type ?? 'text'" :placeholder="placeholder" />
+    <input
+      v-model="modelValue"
+      class="auth-text-input__control"
+      :autocomplete="autocomplete"
+      :disabled="disabled"
+      :name="name"
+      :type="type ?? 'text'"
+      :placeholder="placeholder"
+    />
     <span
       v-if="message"
       class="auth-text-input__message"
@@ -55,6 +68,10 @@ defineProps<{
 
 .auth-text-input__control:focus {
   border-color: var(--color-brand-blue);
+}
+
+.auth-text-input__control:disabled {
+  cursor: not-allowed;
 }
 
 .auth-text-input__message {

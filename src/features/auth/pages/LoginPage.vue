@@ -1,7 +1,49 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+
+import { login, resolveAuthError } from '@/features/auth/api/authApi'
 import AuthLogo from '@/features/auth/components/AuthLogo.vue'
 import AuthPrimaryButton from '@/features/auth/components/AuthPrimaryButton.vue'
 import AuthTextInput from '@/features/auth/components/AuthTextInput.vue'
+import { saveAuthTokens } from '@/features/auth/services/authSession'
+
+const email = ref('')
+const password = ref('')
+const feedbackMessage = ref('')
+const feedbackTone = ref<'danger' | 'success'>('danger')
+const isSubmitting = ref(false)
+
+async function handleLogin() {
+  if (isSubmitting.value) {
+    return
+  }
+
+  feedbackMessage.value = ''
+
+  if (!email.value.trim() || !password.value) {
+    feedbackTone.value = 'danger'
+    feedbackMessage.value = '이메일과 비밀번호를 입력해주세요.'
+    return
+  }
+
+  isSubmitting.value = true
+
+  try {
+    const tokens = await login({
+      email: email.value.trim(),
+      password: password.value,
+    })
+
+    saveAuthTokens(tokens)
+    feedbackTone.value = 'success'
+    feedbackMessage.value = '로그인되었습니다.'
+  } catch (error) {
+    feedbackTone.value = 'danger'
+    feedbackMessage.value = resolveAuthError(error, '이메일 또는 비밀번호를 확인해주세요.')
+  } finally {
+    isSubmitting.value = false
+  }
+}
 </script>
 
 <template>
@@ -9,11 +51,35 @@ import AuthTextInput from '@/features/auth/components/AuthTextInput.vue'
     <AuthLogo class="login-page__logo" />
     <h1 id="login-title" class="login-page__title">로그인</h1>
 
-    <form class="login-page__form">
-      <AuthTextInput label="아이디" placeholder="아이디를 입력해주세요" />
-      <AuthTextInput label="비밀번호" placeholder="비밀번호를 입력해주세요" type="password" />
+    <form class="login-page__form" @submit.prevent="handleLogin">
+      <AuthTextInput
+        v-model="email"
+        autocomplete="username"
+        label="아이디"
+        name="email"
+        placeholder="아이디를 입력해주세요"
+        type="email"
+        :disabled="isSubmitting"
+      />
+      <AuthTextInput
+        v-model="password"
+        autocomplete="current-password"
+        label="비밀번호"
+        name="password"
+        placeholder="비밀번호를 입력해주세요"
+        type="password"
+        :disabled="isSubmitting"
+      />
       <RouterLink class="login-page__find-password" to="/findpw">비밀번호 찾기</RouterLink>
     </form>
+
+    <p
+      v-if="feedbackMessage"
+      class="login-page__feedback"
+      :class="`login-page__feedback--${feedbackTone}`"
+    >
+      {{ feedbackMessage }}
+    </p>
 
     <p class="login-page__join">
       <span class="login-page__brand">UVK</span>가 처음이라면,
@@ -21,7 +87,11 @@ import AuthTextInput from '@/features/auth/components/AuthTextInput.vue'
       하기
     </p>
 
-    <AuthPrimaryButton label="로그인하기" />
+    <AuthPrimaryButton
+      :disabled="isSubmitting"
+      :label="isSubmitting ? '로그인 중' : '로그인하기'"
+      @click="handleLogin"
+    />
   </section>
 </template>
 
@@ -64,6 +134,23 @@ import AuthTextInput from '@/features/auth/components/AuthTextInput.vue'
   font-weight: 500;
   line-height: 1.2;
   text-decoration: none;
+}
+
+.login-page__feedback {
+  margin: 14px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: right;
+  white-space: pre-line;
+}
+
+.login-page__feedback--danger {
+  color: #ff4d4d;
+}
+
+.login-page__feedback--success {
+  color: var(--color-brand-blue);
 }
 
 .login-page__join {
