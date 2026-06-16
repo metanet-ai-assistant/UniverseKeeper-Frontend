@@ -27,7 +27,7 @@ describe('Auth pages', () => {
     expect(wrapper.find('a[href="/findpw"]').exists()).toBe(true)
   })
 
-  it('renders join form fields', () => {
+  it('renders join form fields and error messages', async () => {
     const wrapper = mount(JoinPage, {
       global: {
         stubs: {
@@ -40,6 +40,12 @@ describe('Auth pages', () => {
     expect(wrapper.find('input[placeholder="아이디 입력(email)"]').exists()).toBe(true)
     expect(wrapper.find('input[placeholder="닉네임 입력"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('인증번호 전송')
+
+    await wrapper.get('.auth-primary-button').trigger('click')
+
+    expect(wrapper.text()).toContain('*이메일 형식이 아닙니다.')
+    expect(wrapper.text()).toContain('*인증번호가 틀렸습니다.')
+    expect(wrapper.text()).toContain('*비밀번호가 일치하지 않습니다.')
   })
 
   it('renders find password form fields', () => {
@@ -54,5 +60,6 @@ describe('Auth pages', () => {
     expect(wrapper.get('h1').text()).toBe('비밀번호 찾기')
     expect(wrapper.find('input[placeholder="이메일(아이디)을 입력해주세요"]').exists()).toBe(true)
     expect(wrapper.find('input[placeholder="인증번호를 입력해주세요"]').exists()).toBe(true)
+    expect(wrapper.find('button.find-password-page__code-button').exists()).toBe(true)
   })
 })

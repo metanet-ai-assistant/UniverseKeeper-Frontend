@@ -42,12 +42,21 @@ import AuthTextInput from '@/features/auth/components/AuthTextInput.vue'
 }
 
 .find-password-page__code-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 101px;
+  display: flex;
+  align-items: flex-start;
   gap: 8px;
 }
 
+.find-password-page__code-row :deep(.auth-text-input) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .find-password-page__code-button {
+  display: inline-flex;
+  flex: 0 0 101px;
+  align-items: center;
+  justify-content: center;
   min-height: 58px;
   padding: 0 12px;
   color: var(--color-brand-blue);

@@ -20,3 +20,14 @@ test('moves from splash to login and auth subpages', async ({ page }) => {
   await expect(page).toHaveURL(/\/findpw$/)
   await expect(page.getByRole('heading', { name: '비밀번호 찾기' })).toBeVisible()
 })
+
+test('shows join error messages after submit', async ({ page }) => {
+  await page.setViewportSize({ width: 402, height: 874 })
+  await page.goto('/join')
+
+  await page.getByRole('button', { name: '회원가입' }).click()
+
+  await expect(page.getByText('*이메일 형식이 아닙니다.')).toBeVisible()
+  await expect(page.getByText('*인증번호가 틀렸습니다.')).toBeVisible()
+  await expect(page.getByText('*비밀번호가 일치하지 않습니다.')).toBeVisible()
+})

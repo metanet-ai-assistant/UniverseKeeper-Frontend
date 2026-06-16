@@ -18,6 +18,7 @@ defineProps<{
   padding: 0 24px;
   color: #2d2d2d;
   background: var(--color-brand-lime);
+  border: 0;
   border-radius: 16px;
   font-family: var(--font-family-base);
   font-size: 20px;

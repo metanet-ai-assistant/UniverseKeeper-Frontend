@@ -2,6 +2,8 @@
 defineProps<{
   label: string
   placeholder: string
+  message?: string
+  tone?: 'default' | 'danger'
   type?: 'email' | 'password' | 'text'
 }>()
 </script>
@@ -10,6 +12,13 @@ defineProps<{
   <label class="auth-text-input">
     <span class="auth-text-input__label">{{ label }}</span>
     <input class="auth-text-input__control" :type="type ?? 'text'" :placeholder="placeholder" />
+    <span
+      v-if="message"
+      class="auth-text-input__message"
+      :class="`auth-text-input__message--${tone ?? 'default'}`"
+    >
+      {{ message }}
+    </span>
   </label>
 </template>
 
@@ -46,5 +55,22 @@ defineProps<{
 
 .auth-text-input__control:focus {
   border-color: var(--color-brand-blue);
+}
+
+.auth-text-input__message {
+  display: block;
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.auth-text-input__message--default {
+  color: #6f7280;
+}
+
+.auth-text-input__message--danger {
+  color: #ff4d4d;
 }
 </style>
