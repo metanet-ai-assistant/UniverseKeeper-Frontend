@@ -44,12 +44,28 @@ test('moves from find password to password reset state', async ({ page }) => {
   await expect(page.getByPlaceholder('새로운 비밀번호를 입력')).toBeVisible()
   await expect(page.getByPlaceholder('비밀번호를 재확인')).toBeVisible()
 })
-test('shows workspace list with mock data', async ({ page }) => {
+
+test('moves from workspace list to a single new workspace page', async ({ page }) => {
   await page.setViewportSize({ width: 402, height: 874 })
   await page.goto('/workspaces')
 
   await expect(page.getByRole('heading', { name: /전찬혁 작가님/ })).toBeVisible()
   await expect(page.getByText('별이 꺼진 후의 기록작')).toBeVisible()
-  await expect(page.getByText('미검토 2건')).toBeVisible()
-  await expect(page.getByRole('link', { name: /새 작품/ })).toBeVisible()
+
+  await page.getByRole('link', { name: /새 작품/ }).click()
+  await expect(page).toHaveURL(/\/workspaces\/new$/)
+  await expect(page.getByRole('heading', { name: '새 작품 만들기' })).toBeVisible()
+
+  await expect(page.getByPlaceholder('작품 설정을 입력해주세요.')).toBeVisible()
+
+  await page.getByRole('button', { name: /원고 업로드/ }).click()
+  await expect(page.getByRole('button', { name: /원고 업로드/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expect(page.getByText('원고를 업로드하거나 붙여넣으세요')).toBeVisible()
+
+  await page.getByRole('button', { name: /직접 입력/ }).click()
+  await expect(page.getByPlaceholder('작품 설정을 입력해주세요.')).toBeVisible()
+  await expect(page.getByRole('button', { name: '작품 생성' })).toBeVisible()
 })
