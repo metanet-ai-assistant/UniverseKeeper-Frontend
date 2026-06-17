@@ -1,38 +1,146 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
-import { resolveAuthError, signup } from '@/features/auth/api/authApi'
+import { resolveAuthError, sendVerificationEmail, signup } from '@/features/auth/api/authApi'
 import AuthHeader from '@/features/auth/components/AuthHeader.vue'
 import AuthLogo from '@/features/auth/components/AuthLogo.vue'
 import AuthPrimaryButton from '@/features/auth/components/AuthPrimaryButton.vue'
 import AuthTextInput from '@/features/auth/components/AuthTextInput.vue'
+import AuthToast from '@/features/auth/components/AuthToast.vue'
 import {
   isValidEmail,
   isValidPassword,
   PASSWORD_HELPER_MESSAGE,
 } from '@/features/auth/utils/validation'
 
+const VERIFICATION_COUNTDOWN_SECONDS = 10 * 60
+const TOAST_DURATION_MS = 3000
+
+const router = useRouter()
 const email = ref('')
 const verificationCode = ref('')
 const password = ref('')
 const passwordConfirm = ref('')
 const userName = ref('')
+const isSendingCode = ref(false)
 const isSubmitting = ref(false)
-const feedbackMessage = ref('')
-const feedbackTone = ref<'danger' | 'success'>('danger')
+const verificationCountdown = ref(0)
+const toastMessage = ref('')
+const toastTone = ref<'danger' | 'success'>('success')
+let countdownTimer: number | undefined
+let toastTimer: number | undefined
 
 const fieldErrors = reactive({
   email: '',
+  verificationCode: '',
   password: '',
   passwordConfirm: '',
   userName: '',
 })
 
+const verificationButtonLabel = computed(() => {
+  if (isSendingCode.value) {
+    return '전송 중'
+  }
+
+  if (verificationCountdown.value <= 0) {
+    return '인증번호 전송'
+  }
+
+  const minutes = Math.floor(verificationCountdown.value / 60)
+  const seconds = verificationCountdown.value % 60
+
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+})
+
+watch(password, validatePasswordField)
+watch([password, passwordConfirm], validatePasswordConfirmField)
+
+onBeforeUnmount(() => {
+  stopVerificationCountdown()
+  clearToastTimer()
+})
+
 function resetFieldErrors() {
   fieldErrors.email = ''
+  fieldErrors.verificationCode = ''
   fieldErrors.password = ''
   fieldErrors.passwordConfirm = ''
   fieldErrors.userName = ''
+}
+
+function clearToastTimer() {
+  if (!toastTimer) {
+    return
+  }
+
+  window.clearTimeout(toastTimer)
+  toastTimer = undefined
+}
+
+function showToast(message: string, tone: 'danger' | 'success') {
+  clearToastTimer()
+  toastMessage.value = message
+  toastTone.value = tone
+
+  toastTimer = window.setTimeout(() => {
+    toastMessage.value = ''
+    toastTimer = undefined
+  }, TOAST_DURATION_MS)
+}
+
+function stopVerificationCountdown() {
+  if (!countdownTimer) {
+    return
+  }
+
+  window.clearInterval(countdownTimer)
+  countdownTimer = undefined
+}
+
+function startVerificationCountdown() {
+  stopVerificationCountdown()
+  verificationCountdown.value = VERIFICATION_COUNTDOWN_SECONDS
+
+  countdownTimer = window.setInterval(() => {
+    verificationCountdown.value -= 1
+
+    if (verificationCountdown.value <= 0) {
+      verificationCountdown.value = 0
+      stopVerificationCountdown()
+    }
+  }, 1000)
+}
+
+function validatePasswordField() {
+  if (!password.value) {
+    fieldErrors.password = ''
+    return
+  }
+
+  fieldErrors.password = isValidPassword(password.value) ? '' : PASSWORD_HELPER_MESSAGE
+}
+
+function validatePasswordConfirmField() {
+  if (!passwordConfirm.value) {
+    fieldErrors.passwordConfirm = ''
+    return
+  }
+
+  fieldErrors.passwordConfirm =
+    password.value === passwordConfirm.value ? '' : '*비밀번호가 일치하지 않습니다.'
+}
+
+function validateEmailField() {
+  fieldErrors.email = ''
+
+  if (!isValidEmail(email.value)) {
+    fieldErrors.email = '*이메일 형식이 아닙니다.'
+    return false
+  }
+
+  return true
 }
 
 function validateSignupForm() {
@@ -40,6 +148,10 @@ function validateSignupForm() {
 
   if (!isValidEmail(email.value)) {
     fieldErrors.email = '*이메일 형식이 아닙니다.'
+  }
+
+  if (!verificationCode.value.trim()) {
+    fieldErrors.verificationCode = '*인증번호를 입력해주세요.'
   }
 
   if (!isValidPassword(password.value)) {
@@ -56,10 +168,37 @@ function validateSignupForm() {
 
   return (
     !fieldErrors.email &&
+    !fieldErrors.verificationCode &&
     !fieldErrors.password &&
     !fieldErrors.passwordConfirm &&
     !fieldErrors.userName
   )
+}
+
+async function handleSendVerificationCode() {
+  if (isSendingCode.value || isSubmitting.value || verificationCountdown.value > 0) {
+    return
+  }
+
+  if (!validateEmailField()) {
+    return
+  }
+
+  isSendingCode.value = true
+
+  try {
+    const response = await sendVerificationEmail({
+      email: email.value.trim(),
+      purpose: 'SIGNUP',
+    })
+
+    showToast(response.message || '인증번호를 전송했습니다.', 'success')
+    startVerificationCountdown()
+  } catch (error) {
+    showToast(resolveAuthError(error, '인증번호 전송에 실패했습니다.'), 'danger')
+  } finally {
+    isSendingCode.value = false
+  }
 }
 
 async function handleSignup() {
@@ -67,10 +206,9 @@ async function handleSignup() {
     return
   }
 
-  feedbackMessage.value = ''
+  toastMessage.value = ''
 
   if (!validateSignupForm()) {
-    feedbackTone.value = 'danger'
     return
   }
 
@@ -81,13 +219,12 @@ async function handleSignup() {
       email: email.value.trim(),
       password: password.value,
       user_name: userName.value.trim(),
+      code: verificationCode.value.trim(),
     })
 
-    feedbackTone.value = 'success'
-    feedbackMessage.value = '회원가입이 완료되었습니다.'
+    await router.push('/login')
   } catch (error) {
-    feedbackTone.value = 'danger'
-    feedbackMessage.value = resolveAuthError(error, '회원가입 요청에 실패했습니다.')
+    showToast(resolveAuthError(error, '회원가입 요청에 실패했습니다.'), 'danger')
   } finally {
     isSubmitting.value = false
   }
@@ -111,8 +248,13 @@ async function handleSignup() {
             type="email"
             :disabled="isSubmitting"
           />
-          <button class="join-page__code-button" type="button" :disabled="isSubmitting">
-            인증번호 전송
+          <button
+            class="join-page__code-button"
+            type="button"
+            :disabled="isSubmitting || isSendingCode || verificationCountdown > 0"
+            @click="handleSendVerificationCode"
+          >
+            {{ verificationButtonLabel }}
           </button>
         </div>
         <p v-if="fieldErrors.email" class="join-page__error">{{ fieldErrors.email }}</p>
@@ -121,6 +263,8 @@ async function handleSignup() {
         v-model="verificationCode"
         label="인증번호"
         placeholder="인증번호를 입력해주세요"
+        :message="fieldErrors.verificationCode || undefined"
+        tone="danger"
         :disabled="isSubmitting"
       />
       <AuthTextInput
@@ -157,19 +301,15 @@ async function handleSignup() {
       />
     </form>
 
-    <p
-      v-if="feedbackMessage"
-      class="join-page__feedback"
-      :class="`join-page__feedback--${feedbackTone}`"
-    >
-      {{ feedbackMessage }}
-    </p>
+    <div class="join-page__button-area">
+      <AuthToast :message="toastMessage" :tone="toastTone" />
 
-    <AuthPrimaryButton
-      :disabled="isSubmitting"
-      :label="isSubmitting ? '가입 중' : '회원가입'"
-      @click="handleSignup"
-    />
+      <AuthPrimaryButton
+        :disabled="isSubmitting"
+        :label="isSubmitting ? '가입 중' : '회원가입'"
+        @click="handleSignup"
+      />
+    </div>
   </section>
 </template>
 
@@ -243,24 +383,7 @@ async function handleSignup() {
   text-align: right;
 }
 
-.join-page__feedback {
-  margin: 14px 0 0;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.4;
-  text-align: right;
-  white-space: pre-line;
-}
-
-.join-page__feedback--danger {
-  color: #ff4d4d;
-}
-
-.join-page__feedback--success {
-  color: var(--color-brand-blue);
-}
-
-.join-page :deep(.auth-primary-button) {
+.join-page__button-area {
   margin-top: auto;
 }
 </style>

@@ -1,9 +1,26 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+
 import logoApp from '@/assets/images/brand/Logo2.svg'
 import addIcon from '@/assets/images/icons/Add.png'
 import checkmarkIcon from '@/assets/images/icons/Checkmark.png'
 import errorIcon from '@/assets/images/icons/Error.png'
+import { useAuthStore } from '@/features/auth/stores/authStore'
 import { mockWorkspaces, mockWorkspaceStats } from '@/features/workspace/mocks/workspaces'
+
+const authStore = useAuthStore()
+const router = useRouter()
+const isLoggingOut = ref(false)
+
+const ownerName = computed(() => authStore.user?.user_name || mockWorkspaceStats.userName)
+const memberInfo = computed(() => {
+  if (!authStore.user) {
+    return ''
+  }
+
+  return `${authStore.user.email} · ${authStore.user.role}`
+})
 
 function progressPercent(approvedCount: number, totalCount: number) {
   if (totalCount <= 0) {
@@ -11,6 +28,21 @@ function progressPercent(approvedCount: number, totalCount: number) {
   }
 
   return Math.min(100, Math.round((approvedCount / totalCount) * 100))
+}
+
+async function handleLogout() {
+  if (isLoggingOut.value) {
+    return
+  }
+
+  isLoggingOut.value = true
+
+  try {
+    await authStore.logoutCurrentSession()
+    await router.push('/login')
+  } finally {
+    isLoggingOut.value = false
+  }
 }
 </script>
 
@@ -21,11 +53,19 @@ function progressPercent(approvedCount: number, totalCount: number) {
     <section class="workspace-list-page__greeting" aria-label="작가 정보">
       <div>
         <h1 id="workspace-list-title" class="workspace-list-page__greeting-title">
-          안녕하세요, {{ mockWorkspaceStats.userName }} 작가님
+          안녕하세요, {{ ownerName }} 작가님
         </h1>
         <p class="workspace-list-page__greeting-copy">현재 2개 작품을 관리 중입니다.</p>
+        <p v-if="memberInfo" class="workspace-list-page__member">{{ memberInfo }}</p>
       </div>
-      <button class="workspace-list-page__logout" type="button">로그아웃</button>
+      <button
+        class="workspace-list-page__logout"
+        type="button"
+        :disabled="isLoggingOut"
+        @click="handleLogout"
+      >
+        {{ isLoggingOut ? '로그아웃 중' : '로그아웃' }}
+      </button>
     </section>
 
     <dl class="workspace-list-page__stats" aria-label="작품 통계">
@@ -45,7 +85,7 @@ function progressPercent(approvedCount: number, totalCount: number) {
 
     <div class="workspace-list-page__section-header">
       <h2 class="workspace-list-page__section-title">
-        {{ mockWorkspaceStats.userName.slice(1) }}님의 워크스페이스
+        {{ ownerName }}님의 워크스페이스
       </h2>
       <RouterLink class="workspace-list-page__new-link" to="/workspaces/new">
         <img class="workspace-list-page__new-icon" :src="addIcon" alt="" aria-hidden="true" />
@@ -145,16 +185,31 @@ function progressPercent(approvedCount: number, totalCount: number) {
   letter-spacing: 0;
 }
 
+.workspace-list-page__member {
+  margin: 6px 0 0;
+  color: #828797;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
 .workspace-list-page__logout {
   margin-top: 3px;
   padding: 0;
   color: #828797;
   background: transparent;
+  border: 0;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.2;
   letter-spacing: 0;
   cursor: pointer;
+}
+
+.workspace-list-page__logout:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .workspace-list-page__stats {

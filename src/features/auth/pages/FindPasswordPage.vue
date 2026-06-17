@@ -1,29 +1,36 @@
 <script setup lang="ts">
-import { nextTick, reactive, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 
-import { resetPassword, resolveAuthError } from '@/features/auth/api/authApi'
+import { resetPassword, resolveAuthError, sendVerificationEmail } from '@/features/auth/api/authApi'
 import AuthHeader from '@/features/auth/components/AuthHeader.vue'
 import AuthLogo from '@/features/auth/components/AuthLogo.vue'
 import AuthPrimaryButton from '@/features/auth/components/AuthPrimaryButton.vue'
 import AuthTextInput from '@/features/auth/components/AuthTextInput.vue'
+import AuthToast from '@/features/auth/components/AuthToast.vue'
 import {
   isValidEmail,
   isValidPassword,
   PASSWORD_HELPER_MESSAGE,
 } from '@/features/auth/utils/validation'
 
+const TOAST_DURATION_MS = 3000
+
 const mode = ref<'email' | 'reset'>('email')
 const email = ref('')
 const verificationCode = ref('')
 const newPassword = ref('')
 const passwordConfirm = ref('')
+const isSendingCode = ref(false)
 const isSubmitting = ref(false)
-const feedbackMessage = ref('')
+const toastMessage = ref('')
+const toastTone = ref<'danger' | 'success'>('success')
 const showSuccess = ref(false)
 const dialogRef = ref<HTMLDialogElement>()
+let toastTimer: number | undefined
 
 const fieldErrors = reactive({
   email: '',
+  verificationCode: '',
   newPassword: '',
   passwordConfirm: '',
 })
@@ -57,26 +64,86 @@ watch(showSuccess, async (shouldShow) => {
   dialog.removeAttribute('open')
 })
 
+onBeforeUnmount(() => {
+  clearToastTimer()
+})
+
 function resetFieldErrors() {
   fieldErrors.email = ''
+  fieldErrors.verificationCode = ''
   fieldErrors.newPassword = ''
   fieldErrors.passwordConfirm = ''
 }
 
-function handlePasswordStep() {
-  resetFieldErrors()
-  feedbackMessage.value = ''
-
-  if (!isValidEmail(email.value)) {
-    fieldErrors.email = '*이메일 형식이 아닙니다.'
+function clearToastTimer() {
+  if (!toastTimer) {
     return
   }
 
-  mode.value = 'reset'
+  window.clearTimeout(toastTimer)
+  toastTimer = undefined
+}
+
+function showToast(message: string, tone: 'danger' | 'success') {
+  clearToastTimer()
+  toastMessage.value = message
+  toastTone.value = tone
+
+  toastTimer = window.setTimeout(() => {
+    toastMessage.value = ''
+    toastTimer = undefined
+  }, TOAST_DURATION_MS)
+}
+
+function validateEmailField() {
+  fieldErrors.email = ''
+
+  if (!isValidEmail(email.value)) {
+    fieldErrors.email = '*이메일 형식이 아닙니다.'
+    return false
+  }
+
+  return true
+}
+
+async function handleSendVerificationCode() {
+  if (isSendingCode.value || isSubmitting.value) {
+    return
+  }
+
+  toastMessage.value = ''
+
+  if (!validateEmailField()) {
+    return
+  }
+
+  isSendingCode.value = true
+
+  try {
+    const response = await sendVerificationEmail({
+      email: email.value.trim(),
+      purpose: 'PASSWORD_RESET',
+    })
+
+    showToast(response.message || '인증번호를 전송했습니다.', 'success')
+    mode.value = 'reset'
+  } catch (error) {
+    showToast(resolveAuthError(error, '인증번호 전송에 실패했습니다.'), 'danger')
+  } finally {
+    isSendingCode.value = false
+  }
 }
 
 function validateResetForm() {
   resetFieldErrors()
+
+  if (!isValidEmail(email.value)) {
+    fieldErrors.email = '*이메일 형식이 아닙니다.'
+  }
+
+  if (!verificationCode.value.trim()) {
+    fieldErrors.verificationCode = '*인증번호를 입력해주세요.'
+  }
 
   if (!isValidPassword(newPassword.value)) {
     fieldErrors.newPassword = PASSWORD_HELPER_MESSAGE
@@ -86,7 +153,12 @@ function validateResetForm() {
     fieldErrors.passwordConfirm = '*비밀번호가 일치하지 않습니다.'
   }
 
-  return !fieldErrors.newPassword && !fieldErrors.passwordConfirm
+  return (
+    !fieldErrors.email &&
+    !fieldErrors.verificationCode &&
+    !fieldErrors.newPassword &&
+    !fieldErrors.passwordConfirm
+  )
 }
 
 async function handleResetPassword() {
@@ -94,7 +166,7 @@ async function handleResetPassword() {
     return
   }
 
-  feedbackMessage.value = ''
+  toastMessage.value = ''
 
   if (!validateResetForm()) {
     return
@@ -105,12 +177,13 @@ async function handleResetPassword() {
   try {
     await resetPassword({
       email: email.value.trim(),
+      code: verificationCode.value.trim(),
       new_password: newPassword.value,
     })
 
     showSuccess.value = true
   } catch (error) {
-    feedbackMessage.value = resolveAuthError(error, '비밀번호 변경 요청에 실패했습니다.')
+    showToast(resolveAuthError(error, '비밀번호 변경 요청에 실패했습니다.'), 'danger')
   } finally {
     isSubmitting.value = false
   }
@@ -124,7 +197,7 @@ async function handleResetPassword() {
 
     <form
       class="find-password-page__form"
-      @submit.prevent="mode === 'reset' ? handleResetPassword() : handlePasswordStep()"
+      @submit.prevent="mode === 'reset' ? handleResetPassword() : handleSendVerificationCode()"
     >
       <template v-if="mode === 'email'">
         <div class="find-password-page__code-row">
@@ -137,17 +210,23 @@ async function handleResetPassword() {
             type="email"
             :message="fieldErrors.email || undefined"
             tone="danger"
+            :disabled="isSendingCode"
           />
-          <button class="find-password-page__code-button" type="submit">인증번호 전송</button>
+          <button class="find-password-page__code-button" type="submit" :disabled="isSendingCode">
+            {{ isSendingCode ? '전송 중' : '인증번호 전송' }}
+          </button>
         </div>
+      </template>
+
+      <template v-else>
         <AuthTextInput
           v-model="verificationCode"
           label="인증번호"
           placeholder="인증번호를 입력해주세요"
+          :message="fieldErrors.verificationCode || undefined"
+          tone="danger"
+          :disabled="isSubmitting"
         />
-      </template>
-
-      <template v-else>
         <AuthTextInput
           v-model="newPassword"
           autocomplete="new-password"
@@ -173,14 +252,16 @@ async function handleResetPassword() {
       </template>
     </form>
 
-    <p v-if="feedbackMessage" class="find-password-page__feedback">{{ feedbackMessage }}</p>
+    <div class="find-password-page__button-area">
+      <AuthToast :message="toastMessage" :tone="toastTone" />
 
-    <AuthPrimaryButton
-      v-if="mode === 'reset'"
-      :disabled="isSubmitting"
-      :label="isSubmitting ? '변경 중' : '변경 완료'"
-      @click="handleResetPassword"
-    />
+      <AuthPrimaryButton
+        v-if="mode === 'reset'"
+        :disabled="isSubmitting"
+        :label="isSubmitting ? '변경 중' : '변경 완료'"
+        @click="handleResetPassword"
+      />
+    </div>
 
     <dialog
       ref="dialogRef"
@@ -251,17 +332,12 @@ async function handleResetPassword() {
   cursor: pointer;
 }
 
-.find-password-page__feedback {
-  margin: 14px 0 0;
-  color: #ff4d4d;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.4;
-  text-align: right;
-  white-space: pre-line;
+.find-password-page__code-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
-.find-password-page :deep(.auth-primary-button) {
+.find-password-page__button-area {
   margin-top: auto;
 }
 
