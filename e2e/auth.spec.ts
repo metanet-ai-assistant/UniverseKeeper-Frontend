@@ -14,6 +14,41 @@ async function mockAuthenticatedUser(page: Page) {
     })
   })
 
+  await page.route('**/api/v1/kpi/summary', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        total_works: 2,
+        total_requests: 48,
+        conflicted_episodes: 7,
+      }),
+    })
+  })
+
+  await page.route('**/api/v1/workspace', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          work_id: 11,
+          genre: '판타지',
+          title: '별이 꺼진 뒤의 기록자',
+          episode_count: 7,
+          latest_version_conflict_count: 0,
+        },
+        {
+          work_id: 12,
+          genre: '판타지',
+          title: '붉은 달의 기억',
+          episode_count: 19,
+          latest_version_conflict_count: 2,
+        },
+      ]),
+    })
+  })
+
   await page.addInitScript(() => {
     localStorage.setItem('uvk.accessToken', 'access-token')
     localStorage.setItem('uvk.refreshToken', 'refresh-token')
@@ -82,7 +117,7 @@ test('moves from workspace list to a single new workspace page', async ({ page }
 
   await expect(page.getByRole('heading', { name: /전찬혁 작가님/ })).toBeVisible()
   await expect(page.getByText('user@example.com · user')).toBeVisible()
-  await expect(page.getByText('별이 꺼진 후의 기록작')).toBeVisible()
+  await expect(page.getByText('별이 꺼진 뒤의 기록자')).toBeVisible()
 
   await page.getByRole('link', { name: /새 작품/ }).click()
   await expect(page).toHaveURL(/\/workspaces\/new$/)
@@ -109,7 +144,7 @@ test('moves from workspace list to workspace detail states', async ({ page }) =>
 
   await page.getByRole('link', { name: /붉은 달의 기억/ }).click()
 
-  await expect(page).toHaveURL(/\/workspaces\/red-moon$/)
+  await expect(page).toHaveURL(/\/workspaces\/12$/)
   await expect(page.getByRole('heading', { name: '상세 보기' })).toBeVisible()
   await expect(page.getByText('침묵하는 왕관')).toBeVisible()
   await expect(page.getByText('충돌 발생')).toBeVisible()
