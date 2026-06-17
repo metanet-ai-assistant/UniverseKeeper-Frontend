@@ -13,6 +13,8 @@ const isNoConflict = ref(false)
 const isLoading = computed(() => !pageError.value && !isNoConflict.value)
 
 const workspaceId = computed(() => String(route.params.workspaceId ?? ''))
+const workspacePath = computed(() => `/workspaces/${workspaceId.value}`)
+const canLeaveAnalysis = computed(() => !isLoading.value)
 const episodeLabel = computed(() => {
   const episodeNumber =
     analysisStore.pendingRequest?.episodeNumber || analysisStore.latestEpisodeNumber
@@ -82,7 +84,15 @@ onMounted(() => {
 
 <template>
   <section class="episode-analysis-page" aria-labelledby="episode-analysis-title">
-    <img class="episode-analysis-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
+    <RouterLink
+      v-if="canLeaveAnalysis"
+      class="episode-analysis-page__logo-link"
+      :to="workspacePath"
+      aria-label="워크스페이스로 돌아가기"
+    >
+      <img class="episode-analysis-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
+    </RouterLink>
+    <img v-else class="episode-analysis-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
 
     <header class="episode-analysis-page__header">
       <h1 id="episode-analysis-title" class="episode-analysis-page__title">{{ episodeLabel }}</h1>
@@ -102,6 +112,13 @@ onMounted(() => {
       </div>
       <p class="episode-analysis-page__status">{{ statusMessage }}</p>
       <p class="episode-analysis-page__copy">{{ statusCopy }}</p>
+      <RouterLink
+        v-if="isNoConflict"
+        class="episode-analysis-page__workspace-link"
+        :to="workspacePath"
+      >
+        워크스페이스로 이동
+      </RouterLink>
       <RouterLink
         v-if="pageError"
         class="episode-analysis-page__retry"
@@ -125,6 +142,12 @@ onMounted(() => {
   width: 106px;
   height: 50px;
   object-fit: contain;
+}
+
+.episode-analysis-page__logo-link {
+  display: inline-flex;
+  width: 106px;
+  height: 50px;
 }
 
 .episode-analysis-page__header {
@@ -207,7 +230,8 @@ onMounted(() => {
   letter-spacing: 0;
 }
 
-.episode-analysis-page__retry {
+.episode-analysis-page__retry,
+.episode-analysis-page__workspace-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -222,6 +246,10 @@ onMounted(() => {
   line-height: 1;
   letter-spacing: 0;
   text-decoration: none;
+}
+
+.episode-analysis-page__workspace-link {
+  min-width: 148px;
 }
 
 @keyframes episode-analysis-spin {

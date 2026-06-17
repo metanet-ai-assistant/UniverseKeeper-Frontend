@@ -477,6 +477,35 @@ describe('Workspace pages', () => {
     expect(wrapper.text()).toContain('21화 분석 완료')
     expect(wrapper.text()).toContain('충돌이 없습니다.')
     expect(wrapper.find('.episode-analysis-page__back').exists()).toBe(false)
+    expect(wrapper.find('a[href="/workspaces/12"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('워크스페이스로 이동')
+  })
+
+  it('does not allow leaving while episode conflict analysis is loading', async () => {
+    const pinia = createPinia()
+    const analysisStore = useEpisodeAnalysisStore(pinia)
+    const episodeFile = new File(['abc'], 'episode-22.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+    analysisStore.queueAnalysis({
+      workId: 12,
+      episodeNumber: '22',
+      title: '기다리는 방',
+      file: episodeFile,
+    })
+    conflictApiMocks.checkUploadedFileConflict.mockReturnValueOnce(
+      new Promise<ConflictCheckResponse>(() => undefined),
+    )
+
+    const wrapper = mountWorkspacePage(EpisodeAnalysisPage, pinia)
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('22화 분석 중')
+    expect(wrapper.find('.episode-analysis-page__spinner').exists()).toBe(true)
+    expect(wrapper.find('a[href="/workspaces/12"]').exists()).toBe(false)
+
+    wrapper.unmount()
   })
 
   it('loads saved conflict reports from API', async () => {

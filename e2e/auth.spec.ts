@@ -511,5 +511,7 @@ test('shows no conflict after episode analysis returns an empty result', async (
     timeout: 7000,
   })
   await expect(page.getByText('충돌이 없습니다.')).toBeVisible()
+  await page.getByRole('link', { name: '워크스페이스로 이동' }).click()
+  await expect(page).toHaveURL(/\/workspaces\/12$/)
   await expect(page.locator('.conflict-report-card')).toHaveCount(0)
 })
