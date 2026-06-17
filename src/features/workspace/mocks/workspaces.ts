@@ -40,7 +40,6 @@ export const mockWorkspaceDetails: WorkspaceDetail[] = [
     title: '붉은 달 아래 기억을 되돌리는 소녀의 이야기',
     genre: '판타지',
     episodeCount: 19,
-    settingCount: 40,
     conflictCount: 2,
     episodes: [
       {
@@ -106,7 +105,6 @@ export const mockWorkspaceDetails: WorkspaceDetail[] = [
     title: '별이 꺼진 후의 기록작',
     genre: '판타지',
     episodeCount: 7,
-    settingCount: 16,
     conflictCount: 0,
     episodes: [
       {

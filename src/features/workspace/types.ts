@@ -34,7 +34,6 @@ export interface WorkspaceDetail {
   title: string
   genre: string
   episodeCount: number
-  settingCount: number
   conflictCount: number
   episodes: WorkspaceEpisode[]
   initialSetting: string
