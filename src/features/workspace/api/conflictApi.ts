@@ -16,6 +16,8 @@ export interface ConflictCheckItem {
 }
 
 export interface ConflictCheckResponse {
+  episode_id?: number | string | null
+  work_id?: number | string | null
   file_name: string
   checked_chunks: number
   is_conflict: boolean
@@ -56,7 +58,7 @@ export async function checkUploadedFileConflict(
   }
 
   const response = await apiClient.post<ConflictCheckResponse>('/api/v1/conflict/check', formData, {
-    timeout: 120000,
+    timeout: 0,
   })
   return response.data
 }
@@ -66,6 +68,9 @@ export async function getConflictReports(
 ): Promise<ConflictReportResponse[]> {
   const response = await apiClient.get<ConflictReportResponse[]>(
     `/api/v1/${episodeId}/conflict_reports`,
+    {
+      timeout: 0,
+    },
   )
   return response.data
 }

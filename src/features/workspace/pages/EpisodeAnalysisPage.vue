@@ -47,9 +47,16 @@ async function runAnalysis() {
   try {
     startProgress()
     await analysisStore.runPendingAnalysis()
+    const episodeId = analysisStore.latestEpisodeId
+
+    if (!episodeId) {
+      pageError.value = '분석 결과에서 회차 ID를 확인할 수 없습니다.'
+      return
+    }
+
     progress.value = 100
     window.setTimeout(() => {
-      void router.push(`/workspaces/${workspaceId.value}/reports/latest`)
+      void router.push(`/workspaces/${workspaceId.value}/reports/${episodeId}`)
     }, 250)
   } catch {
     pageError.value = analysisStore.analysisError || '충돌 분석에 실패했습니다.'

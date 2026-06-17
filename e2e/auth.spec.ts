@@ -22,6 +22,7 @@ type WorkspaceRouteOptions = {
     original_text: string
   }
   episodes?: Array<{
+    episode_id?: number
     episode_no: number
     title: string
     is_conflict: boolean
@@ -52,6 +53,7 @@ type WorkspaceRouteOptions = {
     }>
   }
   conflictCheck?: {
+    episode_id?: number
     file_name: string
     checked_chunks: number
     is_conflict: boolean
@@ -160,6 +162,7 @@ async function mockAuthenticatedUser(page: Page, options: WorkspaceRouteOptions 
       body: JSON.stringify(
         options.episodes ?? [
           {
+            episode_id: 191,
             episode_no: 19,
             title: '침묵하는 왕관',
             is_conflict: true,
@@ -224,6 +227,7 @@ async function mockAuthenticatedUser(page: Page, options: WorkspaceRouteOptions 
       contentType: 'application/json',
       body: JSON.stringify(
         options.conflictCheck ?? {
+          episode_id: 201,
           file_name: 'episode-20.docx',
           checked_chunks: 2,
           is_conflict: true,
@@ -431,7 +435,7 @@ test('moves from workspace list to workspace detail states', async ({ page }) =>
 
   await page.getByRole('tab', { name: '회차' }).click()
   await page.getByRole('link', { name: /침묵하는 왕관/ }).click()
-  await expect(page).toHaveURL(/\/workspaces\/12\/reports\/19$/)
+  await expect(page).toHaveURL(/\/workspaces\/12\/reports\/191$/)
   await expect(page.getByRole('heading', { name: '충돌 리포트' })).toBeVisible()
   await expect(page.getByText('왕관 소유 충돌')).toBeVisible()
 })
@@ -463,7 +467,7 @@ test('moves from episode docx upload to analysis and real conflict report', asyn
   await expect(page.getByText('설정과 원문을 비교하고 있습니다.')).toBeVisible()
   await expect(page.getByText('%')).toHaveCount(0)
 
-  await expect(page).toHaveURL(/\/workspaces\/12\/reports\/latest$/, {
+  await expect(page).toHaveURL(/\/workspaces\/12\/reports\/201$/, {
     timeout: 7000,
   })
   await expect(page.getByRole('heading', { name: '충돌 리포트' })).toBeVisible()
@@ -476,11 +480,13 @@ test('shows no conflict after episode analysis returns an empty result', async (
   await page.setViewportSize({ width: 402, height: 874 })
   await mockAuthenticatedUser(page, {
     conflictCheck: {
+      episode_id: 211,
       file_name: 'episode-21.docx',
       checked_chunks: 2,
       is_conflict: false,
       conflicts: [],
     },
+    conflictReports: [],
   })
   await page.goto('/workspaces/12/episodes/new')
 
@@ -493,7 +499,7 @@ test('shows no conflict after episode analysis returns an empty result', async (
   })
   await page.getByRole('button', { name: '분석 시작' }).click()
 
-  await expect(page).toHaveURL(/\/workspaces\/12\/reports\/latest$/, {
+  await expect(page).toHaveURL(/\/workspaces\/12\/reports\/211$/, {
     timeout: 7000,
   })
   await expect(page.getByText('21화 · 고요한 복도')).toBeVisible()

@@ -17,6 +17,7 @@ export const useEpisodeAnalysisStore = defineStore('episodeAnalysis', () => {
   const pendingRequest = ref<PendingEpisodeAnalysis | null>(null)
   const latestResult = ref<ConflictCheckResponse | null>(null)
   const latestWorkId = ref<number | null>(null)
+  const latestEpisodeId = ref<number | string | null>(null)
   const latestEpisodeNumber = ref('')
   const latestTitle = ref('')
   const isAnalyzing = ref(false)
@@ -29,9 +30,14 @@ export const useEpisodeAnalysisStore = defineStore('episodeAnalysis', () => {
     pendingRequest.value = payload
     latestResult.value = null
     latestWorkId.value = payload.workId
+    latestEpisodeId.value = null
     latestEpisodeNumber.value = payload.episodeNumber
     latestTitle.value = payload.title
     analysisError.value = ''
+  }
+
+  function resolveEpisodeId(result: ConflictCheckResponse) {
+    return result.episode_id ?? null
   }
 
   async function runPendingAnalysis() {
@@ -52,6 +58,7 @@ export const useEpisodeAnalysisStore = defineStore('episodeAnalysis', () => {
 
       latestResult.value = result
       latestWorkId.value = request.workId
+      latestEpisodeId.value = resolveEpisodeId(result)
       latestEpisodeNumber.value = request.episodeNumber
       latestTitle.value = request.title
       pendingRequest.value = null
@@ -68,6 +75,7 @@ export const useEpisodeAnalysisStore = defineStore('episodeAnalysis', () => {
   function clearLatestResult() {
     latestResult.value = null
     latestWorkId.value = null
+    latestEpisodeId.value = null
     latestEpisodeNumber.value = ''
     latestTitle.value = ''
     analysisError.value = ''
@@ -79,6 +87,7 @@ export const useEpisodeAnalysisStore = defineStore('episodeAnalysis', () => {
     hasLatestResult,
     hasPendingRequest,
     isAnalyzing,
+    latestEpisodeId,
     latestEpisodeNumber,
     latestResult,
     latestTitle,

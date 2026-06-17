@@ -5,7 +5,6 @@ import { useRoute } from 'vue-router'
 import logoApp from '@/assets/images/brand/Logo2.svg'
 import {
   getConflictReports,
-  type ConflictCheckItem,
   type ConflictReportResponse,
 } from '@/features/workspace/api/conflictApi'
 import { useEpisodeAnalysisStore } from '@/features/workspace/stores/episodeAnalysisStore'
@@ -29,19 +28,24 @@ const reportItems = ref<ConflictReportItem[]>([])
 
 const workspaceId = computed(() => getRouteParam(route.params.workspaceId))
 const reportId = computed(() => getRouteParam(route.params.reportId))
-const isLatestReport = computed(() => reportId.value === 'latest')
+const reportEpisodeId = computed(() => {
+  if (reportId.value === 'latest') {
+    return analysisStore.latestEpisodeId
+  }
+
+  return reportId.value
+})
 const summaryMeta = computed(() => {
-  if (isLatestReport.value) {
+  if (analysisStore.latestEpisodeId && String(analysisStore.latestEpisodeId) === String(reportEpisodeId.value)) {
     const episodeLabel = analysisStore.latestEpisodeNumber
       ? `${analysisStore.latestEpisodeNumber}화`
       : '최근 분석'
-    const titleLabel =
-      analysisStore.latestTitle || analysisStore.latestResult?.file_name || '회차 원고'
+    const titleLabel = analysisStore.latestTitle || '회차 원고'
 
     return `${episodeLabel} · ${titleLabel}`
   }
 
-  return `리포트 #${reportId.value}`
+  return `회차 ID ${reportEpisodeId.value}`
 })
 const summaryTitle = computed(() => {
   if (isLoading.value) {
@@ -95,29 +99,6 @@ function fallbackText(value: unknown, fallback: string) {
   return String(value).trim() || fallback
 }
 
-function shouldShowLatestConflict(item: ConflictCheckItem) {
-  return item.is_conflict !== false
-}
-
-function getLatestConflicts(conflicts: ConflictCheckItem[] | undefined) {
-  return Array.isArray(conflicts) ? conflicts : []
-}
-
-function mapLatestConflict(item: ConflictCheckItem): ConflictReportItem {
-  const evidence = [item.evidence_text, item.evidence_location].filter(Boolean).join(' · ')
-
-  return {
-    id: `chunk-${item.chunk_index}`,
-    title: fallbackText(item.conflicting_sentence || item.reason, `충돌 ${item.chunk_index + 1}`),
-    manuscript: fallbackText(item.chunk_text || item.conflicting_sentence, '원문 정보가 없습니다.'),
-    evidence: fallbackText(evidence, '근거 정보가 없습니다.'),
-    recommendation: fallbackText(item.recommended_sentence, '추천 문장이 없습니다.'),
-    reason: fallbackText(item.reason, '충돌 사유가 없습니다.'),
-    confidenceLabel: formatScore(item.confidence_score),
-    hallucinationLabel: formatScore(item.hallucination_rate ?? item.hallucination_score),
-  }
-}
-
 function mapSavedConflict(item: ConflictReportResponse, index: number): ConflictReportItem {
   return {
     id: String(item.id),
@@ -134,24 +115,9 @@ function mapSavedConflict(item: ConflictReportResponse, index: number): Conflict
 async function loadReport() {
   loadError.value = ''
   reportItems.value = []
+  const episodeId = reportEpisodeId.value
 
-  if (isLatestReport.value) {
-    const latestResult = analysisStore.latestResult
-
-    if (!latestResult) {
-      loadError.value = '표시할 분석 결과가 없습니다. 회차 업로드 화면에서 다시 분석해주세요.'
-      return
-    }
-
-    reportItems.value = getLatestConflicts(latestResult.conflicts)
-      .filter((item) => shouldShowLatestConflict(item))
-      .map((item) => mapLatestConflict(item))
-    return
-  }
-
-  const numericReportId = Number(reportId.value)
-
-  if (!Number.isInteger(numericReportId) || numericReportId <= 0) {
+  if (!episodeId) {
     loadError.value = '충돌 리포트 정보를 확인할 수 없습니다.'
     return
   }
@@ -159,7 +125,7 @@ async function loadReport() {
   isLoading.value = true
 
   try {
-    const reports = await getConflictReports(numericReportId)
+    const reports = await getConflictReports(episodeId)
     reportItems.value = reports.map((item, index) => mapSavedConflict(item, index))
   } catch {
     loadError.value = '충돌 리포트를 불러오지 못했습니다.'

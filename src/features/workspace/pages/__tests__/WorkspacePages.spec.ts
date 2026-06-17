@@ -125,6 +125,7 @@ beforeEach(() => {
   })
   workspaceDetailApiMocks.getWorkspaceEpisodes.mockResolvedValue([
     {
+      episode_id: 191,
       episode_no: 19,
       title: '침묵하는 왕관',
       is_conflict: true,
@@ -155,6 +156,7 @@ beforeEach(() => {
     edges: [{ source: '유진', target: '민호', label: 'RELATED', properties: {} }],
   })
   conflictApiMocks.checkUploadedFileConflict.mockResolvedValue({
+    episode_id: 201,
     file_name: 'episode-20.docx',
     checked_chunks: 2,
     is_conflict: true,
@@ -178,7 +180,7 @@ beforeEach(() => {
     {
       id: 1,
       work_id: 12,
-      episode_id: 19,
+      episode_id: 191,
       title: '왕관 소유 충돌',
       current_sentence: '민호가 왕관을 들고 등장한다.',
       suggested_sentence: '민호는 왕관이 봉인된 금고를 발견한다.',
@@ -316,7 +318,7 @@ describe('Workspace pages', () => {
     expect(wrapper.text()).toContain('침묵하는 왕관')
     expect(wrapper.text()).not.toContain('# 초기 설정 - 붉은 달의 기억')
     expect(wrapper.find('a[href="/workspaces/12/episodes/new"]').exists()).toBe(true)
-    expect(wrapper.find('a[href="/workspaces/12/reports/19"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/workspaces/12/reports/191"]').exists()).toBe(true)
     expect(wrapper.find('.episode-card__chevron').exists()).toBe(false)
 
     await wrapper.get('button[role="tab"]:nth-of-type(2)').trigger('click')
@@ -392,7 +394,7 @@ describe('Workspace pages', () => {
     expect(routerMocks.push).toHaveBeenCalledWith('/workspaces/12/episodes/analyzing')
   })
 
-  it('runs pending episode conflict analysis before moving to the latest report', async () => {
+  it('runs pending episode conflict analysis before moving to the report endpoint route', async () => {
     vi.useFakeTimers()
 
     const pinia = createPinia()
@@ -417,11 +419,12 @@ describe('Workspace pages', () => {
       title: '왕관의 균열',
     })
     expect(analysisStore.latestResult?.file_name).toBe('episode-20.docx')
+    expect(analysisStore.latestEpisodeId).toBe(201)
 
     vi.advanceTimersByTime(250)
     await flushPromises()
 
-    expect(routerMocks.push).toHaveBeenCalledWith('/workspaces/12/reports/latest')
+    expect(routerMocks.push).toHaveBeenCalledWith('/workspaces/12/reports/201')
 
     wrapper.unmount()
     vi.useRealTimers()
@@ -432,66 +435,42 @@ describe('Workspace pages', () => {
 
     await flushPromises()
 
-    expect(conflictApiMocks.getConflictReports).toHaveBeenCalledWith(19)
+    expect(conflictApiMocks.getConflictReports).toHaveBeenCalledWith('19')
     expect(wrapper.get('h1').text()).toBe('충돌 리포트')
     expect(wrapper.text()).toContain('분석 완료')
     expect(wrapper.text()).toContain('왕관 소유 충돌')
     expect(wrapper.text()).toContain('신뢰도 91%')
   })
 
-  it('shows no conflict state from the latest analysis result', async () => {
-    routerMocks.routeParams.reportId = 'latest'
+  it('shows no conflict state from the conflict reports API', async () => {
+    conflictApiMocks.getConflictReports.mockResolvedValueOnce([])
 
-    const pinia = createPinia()
-    const analysisStore = useEpisodeAnalysisStore(pinia)
-    analysisStore.latestWorkId = 12
-    analysisStore.latestEpisodeNumber = '20'
-    analysisStore.latestTitle = '고요한 복도'
-    analysisStore.latestResult = {
-      file_name: 'episode-20.docx',
-      checked_chunks: 2,
-      is_conflict: false,
-      conflicts: [],
-    }
-
-    const wrapper = mountWorkspacePage(ConflictReportPage, pinia)
+    const wrapper = mountWorkspacePage(ConflictReportPage)
 
     await flushPromises()
 
-    expect(conflictApiMocks.getConflictReports).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('20화 · 고요한 복도')
+    expect(conflictApiMocks.getConflictReports).toHaveBeenCalledWith('19')
     expect(wrapper.text()).toContain('충돌이 없습니다.')
     expect(wrapper.find('.conflict-report-card').exists()).toBe(false)
   })
 
-  it('renders latest conflict items even when optional flags are omitted', async () => {
-    routerMocks.routeParams.reportId = 'latest'
+  it('renders conflict reports even when optional fields are omitted', async () => {
+    conflictApiMocks.getConflictReports.mockResolvedValueOnce([
+      {
+        id: 2,
+        work_id: 12,
+        episode_id: 19,
+        title: null,
+        current_sentence: '유진은 왕관을 착용했다.',
+        suggested_sentence: '유진은 봉인된 왕관을 바라봤다.',
+        reason: '왕관은 봉인되어 있어 착용할 수 없습니다.',
+        confidence_score: 0.88,
+        hallucination_score: 0.05,
+        created_at: '2026-06-17T05:38:48.948Z',
+      },
+    ])
 
-    const pinia = createPinia()
-    const analysisStore = useEpisodeAnalysisStore(pinia)
-    analysisStore.latestWorkId = 12
-    analysisStore.latestEpisodeNumber = '21'
-    analysisStore.latestTitle = '고요한 복도'
-    analysisStore.latestResult = {
-      file_name: 'episode-21.docx',
-      checked_chunks: 1,
-      is_conflict: true,
-      conflicts: [
-        {
-          chunk_index: 0,
-          chunk_text: '유진은 왕관을 착용했다.',
-          conflicting_sentence: null,
-          evidence_text: null,
-          evidence_location: '초기 설정',
-          reason: '왕관은 봉인되어 있어 착용할 수 없습니다.',
-          recommended_sentence: '유진은 봉인된 왕관을 바라봤다.',
-          confidence_score: 0.88,
-          hallucination_score: 0.05,
-        },
-      ],
-    }
-
-    const wrapper = mountWorkspacePage(ConflictReportPage, pinia)
+    const wrapper = mountWorkspacePage(ConflictReportPage)
 
     await flushPromises()
 
@@ -499,5 +478,41 @@ describe('Workspace pages', () => {
     expect(wrapper.text()).toContain('왕관은 봉인되어 있어 착용할 수 없습니다.')
     expect(wrapper.text()).toContain('신뢰도 88%')
     expect(wrapper.text()).toContain('환각률 5%')
+  })
+
+  it('shows an analysis error when conflict check does not return an episode id', async () => {
+    vi.useFakeTimers()
+    const pinia = createPinia()
+    const analysisStore = useEpisodeAnalysisStore(pinia)
+    const episodeFile = new File(['abc'], 'episode-20.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+    analysisStore.queueAnalysis({
+      workId: 12,
+      episodeNumber: '20',
+      title: '왕관의 균열',
+      file: episodeFile,
+    })
+    conflictApiMocks.checkUploadedFileConflict.mockResolvedValueOnce({
+      file_name: 'episode-20.docx',
+      checked_chunks: 1,
+      is_conflict: true,
+      conflicts: [
+        {
+          chunk_index: 0,
+          chunk_text: '유진은 왕관을 착용했다.',
+        },
+      ],
+    })
+
+    const wrapper = mountWorkspacePage(EpisodeAnalysisPage, pinia)
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('분석 결과에서 회차 ID를 확인할 수 없습니다.')
+    expect(routerMocks.push).not.toHaveBeenCalledWith('/workspaces/12/reports/latest')
+
+    wrapper.unmount()
+    vi.useRealTimers()
   })
 })

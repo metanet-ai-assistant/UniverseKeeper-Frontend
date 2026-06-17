@@ -84,7 +84,7 @@ function mapEpisode(workId: number, episode: WorkspaceEpisodeResponse): Workspac
     number: episode.episode_no,
     title: episode.title,
     conflictStatus: isConflict ? 'conflict' : 'clear',
-    conflictReportId: isConflict ? episode.episode_no : undefined,
+    conflictReportId: isConflict ? (episode.episode_id ?? episode.episode_no) : undefined,
   }
 }
 
