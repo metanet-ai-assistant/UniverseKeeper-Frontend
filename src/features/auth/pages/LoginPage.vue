@@ -173,10 +173,6 @@ async function handleLogin() {
 .login-page__brand,
 .login-page__join-link {
   color: var(--color-brand-blue);
-}
-
-.login-page__join-link {
-  margin-inline: 10px;
   font-weight: 800;
   text-decoration: none;
 }
