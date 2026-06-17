@@ -95,7 +95,7 @@ async function handleLogout() {
 
     <ul class="workspace-list-page__list" aria-label="워크스페이스 목록">
       <li v-for="workspace in mockWorkspaces" :key="workspace.id" class="workspace-list-page__item">
-        <article class="workspace-card">
+        <RouterLink class="workspace-card" :to="`/workspaces/${workspace.id}`">
           <div class="workspace-card__topline">
             <h3 class="workspace-card__title">{{ workspace.title }}</h3>
             <span
@@ -135,7 +135,7 @@ async function handleLogout() {
           <p class="workspace-card__approval">
             설정 승인 {{ workspace.approvedSettingCount }}/{{ workspace.totalSettingCount }}
           </p>
-        </article>
+        </RouterLink>
       </li>
     </ul>
   </section>
@@ -291,12 +291,14 @@ async function handleLogout() {
 }
 
 .workspace-card {
+  display: block;
   min-height: 120px;
   padding: 18px 14px 15px;
   background: #fefefe;
   border: 1px solid #e7e7ef;
   border-radius: 14px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.25);
+  text-decoration: none;
 }
 
 .workspace-card__topline {

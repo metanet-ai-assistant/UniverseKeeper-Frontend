@@ -54,6 +54,38 @@ const router = createRouter({
         requiresAuth: true,
       },
     },
+    {
+      path: '/workspaces/:workspaceId',
+      name: 'workspace-detail',
+      component: () => import('@/features/workspace/pages/WorkspaceDetailPage.vue'),
+      meta: {
+        requiresAuth: true,
+      },
+    },
+    {
+      path: '/workspaces/:workspaceId/episodes/new',
+      name: 'episode-upload',
+      component: () => import('@/features/workspace/pages/EpisodeUploadPage.vue'),
+      meta: {
+        requiresAuth: true,
+      },
+    },
+    {
+      path: '/workspaces/:workspaceId/episodes/analyzing',
+      name: 'episode-analysis',
+      component: () => import('@/features/workspace/pages/EpisodeAnalysisPage.vue'),
+      meta: {
+        requiresAuth: true,
+      },
+    },
+    {
+      path: '/workspaces/:workspaceId/reports/:reportId',
+      name: 'conflict-report',
+      component: () => import('@/features/workspace/pages/ConflictReportPage.vue'),
+      meta: {
+        requiresAuth: true,
+      },
+    },
   ],
 })
 
