@@ -87,8 +87,20 @@ function formatScore(value: number | null | undefined) {
   return `${Math.round(normalizedScore)}%`
 }
 
-function fallbackText(value: string, fallback: string) {
-  return value.trim() || fallback
+function fallbackText(value: unknown, fallback: string) {
+  if (value === null || value === undefined) {
+    return fallback
+  }
+
+  return String(value).trim() || fallback
+}
+
+function shouldShowLatestConflict(item: ConflictCheckItem) {
+  return item.is_conflict !== false
+}
+
+function getLatestConflicts(conflicts: ConflictCheckItem[] | undefined) {
+  return Array.isArray(conflicts) ? conflicts : []
 }
 
 function mapLatestConflict(item: ConflictCheckItem): ConflictReportItem {
@@ -102,7 +114,7 @@ function mapLatestConflict(item: ConflictCheckItem): ConflictReportItem {
     recommendation: fallbackText(item.recommended_sentence, '추천 문장이 없습니다.'),
     reason: fallbackText(item.reason, '충돌 사유가 없습니다.'),
     confidenceLabel: formatScore(item.confidence_score),
-    hallucinationLabel: formatScore(item.hallucination_rate),
+    hallucinationLabel: formatScore(item.hallucination_rate ?? item.hallucination_score),
   }
 }
 
@@ -131,8 +143,8 @@ async function loadReport() {
       return
     }
 
-    reportItems.value = latestResult.conflicts
-      .filter((item) => item.is_conflict)
+    reportItems.value = getLatestConflicts(latestResult.conflicts)
+      .filter((item) => shouldShowLatestConflict(item))
       .map((item) => mapLatestConflict(item))
     return
   }

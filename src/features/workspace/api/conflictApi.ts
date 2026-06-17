@@ -3,15 +3,16 @@ import { apiClient } from '@/api/client'
 export interface ConflictCheckItem {
   chunk_index: number
   chunk_text: string
-  is_conflict: boolean
-  conflicting_sentence: string
-  evidence_text: string
-  evidence_location: string
-  reason: string
-  recommended_sentence: string
-  confidence_score: number
-  hallucination_rate: number
-  graph_visualization: Record<string, unknown>
+  is_conflict?: boolean | null
+  conflicting_sentence?: string | null
+  evidence_text?: string | null
+  evidence_location?: string | null
+  reason?: string | null
+  recommended_sentence?: string | null
+  confidence_score?: number | null
+  hallucination_rate?: number | null
+  hallucination_score?: number | null
+  graph_visualization?: Record<string, unknown> | null
 }
 
 export interface ConflictCheckResponse {
@@ -25,12 +26,12 @@ export interface ConflictReportResponse {
   id: number
   work_id: number
   episode_id: number
-  title: string
-  current_sentence: string
-  suggested_sentence: string
-  reason: string
-  confidence_score: number
-  hallucination_score: number
+  title?: string | null
+  current_sentence?: string | null
+  suggested_sentence?: string | null
+  reason?: string | null
+  confidence_score?: number | null
+  hallucination_score?: number | null
   created_at: string
 }
 
@@ -55,9 +56,7 @@ export async function checkUploadedFileConflict(
   }
 
   const response = await apiClient.post<ConflictCheckResponse>('/api/v1/conflict/check', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    timeout: 120000,
   })
   return response.data
 }

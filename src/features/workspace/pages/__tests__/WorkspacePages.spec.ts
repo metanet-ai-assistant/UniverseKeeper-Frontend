@@ -463,4 +463,41 @@ describe('Workspace pages', () => {
     expect(wrapper.text()).toContain('충돌이 없습니다.')
     expect(wrapper.find('.conflict-report-card').exists()).toBe(false)
   })
+
+  it('renders latest conflict items even when optional flags are omitted', async () => {
+    routerMocks.routeParams.reportId = 'latest'
+
+    const pinia = createPinia()
+    const analysisStore = useEpisodeAnalysisStore(pinia)
+    analysisStore.latestWorkId = 12
+    analysisStore.latestEpisodeNumber = '21'
+    analysisStore.latestTitle = '고요한 복도'
+    analysisStore.latestResult = {
+      file_name: 'episode-21.docx',
+      checked_chunks: 1,
+      is_conflict: true,
+      conflicts: [
+        {
+          chunk_index: 0,
+          chunk_text: '유진은 왕관을 착용했다.',
+          conflicting_sentence: null,
+          evidence_text: null,
+          evidence_location: '초기 설정',
+          reason: '왕관은 봉인되어 있어 착용할 수 없습니다.',
+          recommended_sentence: '유진은 봉인된 왕관을 바라봤다.',
+          confidence_score: 0.88,
+          hallucination_score: 0.05,
+        },
+      ],
+    }
+
+    const wrapper = mountWorkspacePage(ConflictReportPage, pinia)
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('설정과 원문 사이에서 충돌 1건을 발견했습니다.')
+    expect(wrapper.text()).toContain('왕관은 봉인되어 있어 착용할 수 없습니다.')
+    expect(wrapper.text()).toContain('신뢰도 88%')
+    expect(wrapper.text()).toContain('환각률 5%')
+  })
 })
