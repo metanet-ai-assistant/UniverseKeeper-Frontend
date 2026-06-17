@@ -4,6 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/authStore'
 import type {
+  EntityDetailResponse,
+  EntitySubgraphResponse,
+} from '@/features/workspace/api/graphApi'
+import type {
   KpiSummaryResponse,
   WorkspaceListItemResponse,
 } from '@/features/workspace/api/workspaceApi'
@@ -22,11 +26,18 @@ const workspaceApiMocks = vi.hoisted(() => ({
   getWorkspaces: vi.fn<() => Promise<WorkspaceListItemResponse[]>>(),
 }))
 
+const graphApiMocks = vi.hoisted(() => ({
+  getEntities: vi.fn<() => Promise<string[]>>(),
+  getEntityDetails: vi.fn<() => Promise<EntityDetailResponse>>(),
+  getEntitySubgraph: vi.fn<() => Promise<EntitySubgraphResponse>>(),
+}))
+
 const workspaceDetailApiMocks = vi.hoisted(() => ({
   getWorkspaceDetail: vi.fn<() => Promise<WorkspaceDetailResponse>>(),
   getWorkspaceEpisodes: vi.fn<() => Promise<WorkspaceEpisodeResponse[]>>(),
 }))
 
+vi.mock('@/features/workspace/api/graphApi', () => graphApiMocks)
 vi.mock('@/features/workspace/api/workspaceApi', () => workspaceApiMocks)
 vi.mock('@/features/workspace/api/workspaceDetailApi', () => workspaceDetailApiMocks)
 
@@ -50,6 +61,9 @@ vi.mock('vue-router', async () => {
 beforeEach(() => {
   workspaceApiMocks.getKpiSummary.mockReset()
   workspaceApiMocks.getWorkspaces.mockReset()
+  graphApiMocks.getEntities.mockReset()
+  graphApiMocks.getEntityDetails.mockReset()
+  graphApiMocks.getEntitySubgraph.mockReset()
   workspaceDetailApiMocks.getWorkspaceDetail.mockReset()
   workspaceDetailApiMocks.getWorkspaceEpisodes.mockReset()
 
@@ -94,6 +108,25 @@ beforeEach(() => {
       is_conflict: false,
     },
   ])
+  graphApiMocks.getEntities.mockResolvedValue(['유진'])
+  graphApiMocks.getEntityDetails.mockResolvedValue({
+    entity: {
+      name: '유진',
+      type: 'CHARACTER',
+      description: '기억을 되돌리는 주인공',
+      work_id: 12,
+      episode_id: 1,
+      episode_ids: [1],
+    },
+    relationships: [],
+  })
+  graphApiMocks.getEntitySubgraph.mockResolvedValue({
+    nodes: [
+      { id: '유진', label: '유진', properties: {} },
+      { id: '민호', label: '민호', properties: {} },
+    ],
+    edges: [{ source: '유진', target: '민호', label: 'RELATED', properties: {} }],
+  })
 })
 
 const routerLinkStub = {
@@ -229,6 +262,12 @@ describe('Workspace pages', () => {
     await wrapper.get('.settings-panel__action--graph').trigger('click')
 
     expect(wrapper.get('[role="dialog"]').text()).toContain('Graph')
+    await flushPromises()
+    expect(graphApiMocks.getEntities).toHaveBeenCalledWith(12)
+    expect(graphApiMocks.getEntityDetails).toHaveBeenCalledWith('유진', 12)
+    expect(graphApiMocks.getEntitySubgraph).toHaveBeenCalledWith('유진', 12)
+    expect(wrapper.findAll('.graph-modal__node')).toHaveLength(2)
+    expect(wrapper.findAll('.graph-modal__edge')).toHaveLength(1)
 
     await wrapper.get('.graph-modal__close').trigger('click')
 

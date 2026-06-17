@@ -26,6 +26,31 @@ type WorkspaceRouteOptions = {
     title: string
     is_conflict: boolean
   }>
+  entities?: string[]
+  entityDetail?: {
+    entity: {
+      name: string
+      type: string
+      description: string
+      work_id: number
+      episode_id: number
+      episode_ids: number[]
+    }
+    relationships: unknown[]
+  }
+  subgraph?: {
+    nodes: Array<{
+      id: string
+      label: string
+      properties: Record<string, unknown>
+    }>
+    edges: Array<{
+      source: string
+      target: string
+      label: string
+      properties: Record<string, unknown>
+    }>
+  }
 }
 
 async function mockAuthenticatedUser(page: Page, options: WorkspaceRouteOptions = {}) {
@@ -115,6 +140,50 @@ async function mockAuthenticatedUser(page: Page, options: WorkspaceRouteOptions 
             is_conflict: false,
           },
         ],
+      ),
+    })
+  })
+
+  await page.route(/\/api\/v1\/entities(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(options.entities ?? ['유진']),
+    })
+  })
+
+  await page.route(/\/api\/v1\/entities\/[^/]+(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        options.entityDetail ?? {
+          entity: {
+            name: '유진',
+            type: 'CHARACTER',
+            description: '기억을 되돌리는 주인공',
+            work_id: 12,
+            episode_id: 1,
+            episode_ids: [1],
+          },
+          relationships: [],
+        },
+      ),
+    })
+  })
+
+  await page.route(/\/api\/v1\/entities\/[^/]+\/subgraph(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        options.subgraph ?? {
+          nodes: [
+            { id: '유진', label: '유진', properties: {} },
+            { id: '민호', label: '민호', properties: {} },
+          ],
+          edges: [{ source: '유진', target: '민호', label: 'RELATED', properties: {} }],
+        },
       ),
     })
   })
@@ -270,6 +339,9 @@ test('moves from workspace list to workspace detail states', async ({ page }) =>
   await page.getByRole('button', { name: /그래프 보기/ }).click()
 
   await expect(page.getByRole('dialog', { name: 'Graph' })).toBeVisible()
+  await expect(page.locator('.graph-modal__node')).toHaveCount(2)
+  await expect(page.locator('.graph-modal__edge')).toHaveCount(1)
+  await expect(page.locator('.graph-modal__node-detail')).toContainText('기억을 되돌리는 주인공')
 
   await page.getByRole('button', { name: '그래프 닫기' }).click()
   await expect(page.getByRole('dialog', { name: 'Graph' })).toBeHidden()
