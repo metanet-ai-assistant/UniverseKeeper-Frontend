@@ -477,7 +477,12 @@ describe('Workspace pages', () => {
     expect(wrapper.text()).toContain('21화 분석 완료')
     expect(wrapper.text()).toContain('충돌이 없습니다.')
     expect(wrapper.find('.episode-analysis-page__back').exists()).toBe(false)
-    expect(wrapper.find('a[href="/workspaces/12"]').exists()).toBe(true)
+    expect(wrapper.find('.episode-analysis-page__logo-link[href="/workspaces/12"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('.episode-analysis-page__workspace-link[href="/workspaces/12"]').exists()).toBe(
+      true,
+    )
     expect(wrapper.text()).toContain('워크스페이스로 이동')
   })
 
@@ -515,6 +520,9 @@ describe('Workspace pages', () => {
 
     expect(conflictApiMocks.getConflictReports).toHaveBeenCalledWith('19')
     expect(wrapper.get('h1').text()).toBe('충돌 리포트')
+    expect(wrapper.find('.conflict-report-page__logo-link[href="/workspaces/12"]').exists()).toBe(
+      true,
+    )
     expect(wrapper.text()).toContain('분석 완료')
     expect(wrapper.text()).toContain('왕관 소유 충돌')
     expect(wrapper.text()).toContain('신뢰도 91%')

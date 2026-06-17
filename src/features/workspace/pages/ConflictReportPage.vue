@@ -133,7 +133,13 @@ onMounted(() => {
 
 <template>
   <section class="conflict-report-page" aria-labelledby="conflict-report-title">
-    <img class="conflict-report-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
+    <RouterLink
+      class="conflict-report-page__logo-link"
+      :to="`/workspaces/${workspaceId}`"
+      aria-label="워크스페이스로 돌아가기"
+    >
+      <img class="conflict-report-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
+    </RouterLink>
 
     <header class="conflict-report-page__header">
       <RouterLink
@@ -209,6 +215,12 @@ onMounted(() => {
   width: 106px;
   height: 50px;
   object-fit: contain;
+}
+
+.conflict-report-page__logo-link {
+  display: inline-flex;
+  width: 106px;
+  height: 50px;
 }
 
 .conflict-report-page__header {

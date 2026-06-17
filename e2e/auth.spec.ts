@@ -481,6 +481,8 @@ test('moves from episode docx upload to analysis and real conflict report', asyn
   await expect(page.getByText('20화 · 왕관의 균열')).toBeVisible()
   await expect(page.getByText('왕관 소유 충돌')).toBeVisible()
   await expect(page.getByText('신뢰도 91%')).toBeVisible()
+  await page.getByRole('link', { name: '워크스페이스로 돌아가기' }).click()
+  await expect(page).toHaveURL(/\/workspaces\/12$/)
 })
 
 test('shows no conflict after episode analysis returns an empty result', async ({ page }) => {
@@ -511,7 +513,7 @@ test('shows no conflict after episode analysis returns an empty result', async (
     timeout: 7000,
   })
   await expect(page.getByText('충돌이 없습니다.')).toBeVisible()
-  await page.getByRole('link', { name: '워크스페이스로 이동' }).click()
+  await page.getByRole('link', { name: '워크스페이스로 돌아가기' }).click()
   await expect(page).toHaveURL(/\/workspaces\/12$/)
   await expect(page.locator('.conflict-report-card')).toHaveCount(0)
 })
