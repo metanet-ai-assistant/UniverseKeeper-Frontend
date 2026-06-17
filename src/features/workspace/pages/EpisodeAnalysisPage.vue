@@ -3,36 +3,67 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import logoApp from '@/assets/images/brand/Logo2.svg'
+import { useEpisodeAnalysisStore } from '@/features/workspace/stores/episodeAnalysisStore'
 
 const route = useRoute()
 const router = useRouter()
-const progress = ref(0)
+const analysisStore = useEpisodeAnalysisStore()
+const progress = ref(8)
+const pageError = ref('')
 
 const workspaceId = computed(() => String(route.params.workspaceId ?? ''))
+const episodeLabel = computed(() => {
+  const episodeNumber =
+    analysisStore.pendingRequest?.episodeNumber || analysisStore.latestEpisodeNumber
+
+  return episodeNumber ? `${episodeNumber}화 분석 중` : '회차 분석 중'
+})
 const progressStyle = computed(() => ({
   '--analysis-progress': `${progress.value}%`,
 }))
 
-let progressTimer: ReturnType<typeof window.setInterval> | undefined
+let progressTimer: number | undefined
+
+function startProgress() {
+  progressTimer = window.setInterval(() => {
+    const limit = analysisStore.isAnalyzing ? 88 : 96
+    progress.value = Math.min(limit, progress.value + 4)
+  }, 160)
+}
+
+function stopProgress() {
+  if (progressTimer) {
+    window.clearInterval(progressTimer)
+    progressTimer = undefined
+  }
+}
+
+async function runAnalysis() {
+  if (!analysisStore.hasPendingRequest) {
+    pageError.value = '분석할 회차 파일이 없습니다. 회차 업로드 화면에서 다시 시작해주세요.'
+    return
+  }
+
+  try {
+    startProgress()
+    await analysisStore.runPendingAnalysis()
+    progress.value = 100
+    window.setTimeout(() => {
+      void router.push(`/workspaces/${workspaceId.value}/reports/latest`)
+    }, 250)
+  } catch {
+    pageError.value = analysisStore.analysisError || '충돌 분석에 실패했습니다.'
+  } finally {
+    stopProgress()
+  }
+}
 
 onMounted(() => {
-  progressTimer = window.setInterval(() => {
-    progress.value = Math.min(100, progress.value + 1)
-
-    if (progress.value >= 100) {
-      if (progressTimer) {
-        window.clearInterval(progressTimer)
-      }
-
-      void router.push(`/workspaces/${workspaceId.value}/reports/mock-episode-19`)
-    }
-  }, 40)
+  void runAnalysis()
 })
 
 onBeforeUnmount(() => {
-  if (progressTimer) {
-    window.clearInterval(progressTimer)
-  }
+  stopProgress()
 })
 </script>
 
@@ -48,15 +79,26 @@ onBeforeUnmount(() => {
       >
         <span class="episode-analysis-page__back-icon" aria-hidden="true"></span>
       </RouterLink>
-      <h1 id="episode-analysis-title" class="episode-analysis-page__title">19화 분석 중</h1>
+      <h1 id="episode-analysis-title" class="episode-analysis-page__title">{{ episodeLabel }}</h1>
     </header>
 
     <div class="episode-analysis-page__content">
       <div class="episode-analysis-page__progress" :style="progressStyle" aria-label="분석 진행 중">
         <span class="episode-analysis-page__progress-hole" aria-hidden="true"></span>
       </div>
-      <p class="episode-analysis-page__status">설정과 원문을 비교하고 있습니다.</p>
-      <p class="episode-analysis-page__copy">잠시만 기다려주세요. 보통 10~20초가 걸립니다.</p>
+      <p class="episode-analysis-page__status">
+        {{ pageError || '설정과 원문을 비교하고 있습니다.' }}
+      </p>
+      <p class="episode-analysis-page__copy">
+        {{ pageError ? '회차 업로드 화면에서 다시 시도해주세요.' : '잠시만 기다려주세요.' }}
+      </p>
+      <RouterLink
+        v-if="pageError"
+        class="episode-analysis-page__retry"
+        :to="`/workspaces/${workspaceId}/episodes/new`"
+      >
+        다시 업로드
+      </RouterLink>
     </div>
   </section>
 </template>
@@ -115,6 +157,7 @@ onBeforeUnmount(() => {
   align-items: center;
   flex-direction: column;
   margin-top: 184px;
+  text-align: center;
 }
 
 .episode-analysis-page__progress {
@@ -141,7 +184,7 @@ onBeforeUnmount(() => {
   color: #2d2d2d;
   font-size: 18px;
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1.35;
   letter-spacing: 0;
 }
 
@@ -152,5 +195,22 @@ onBeforeUnmount(() => {
   font-weight: 500;
   line-height: 1.2;
   letter-spacing: 0;
+}
+
+.episode-analysis-page__retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 112px;
+  min-height: 44px;
+  margin-top: 24px;
+  color: #fefefe;
+  background: var(--color-brand-blue);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  text-decoration: none;
 }
 </style>

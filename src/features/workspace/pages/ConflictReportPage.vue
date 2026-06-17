@@ -1,26 +1,164 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import logoApp from '@/assets/images/brand/Logo2.svg'
+import {
+  getConflictReports,
+  type ConflictCheckItem,
+  type ConflictReportResponse,
+} from '@/features/workspace/api/conflictApi'
+import { useEpisodeAnalysisStore } from '@/features/workspace/stores/episodeAnalysisStore'
+
+interface ConflictReportItem {
+  id: string
+  title: string
+  manuscript: string
+  evidence: string
+  recommendation: string
+  reason: string
+  confidenceLabel: string
+  hallucinationLabel: string
+}
 
 const route = useRoute()
-const workspaceId = computed(() => String(route.params.workspaceId ?? ''))
+const analysisStore = useEpisodeAnalysisStore()
+const isLoading = ref(false)
+const loadError = ref('')
+const reportItems = ref<ConflictReportItem[]>([])
 
-const reportItems = [
-  {
-    id: 'memory-limit',
-    title: '유진의 기억 회귀 제한',
-    setting: '초기 설정에서는 최대 10분 전으로 되돌릴 수 있습니다.',
-    manuscript: '19화 원고에서는 하루 전 기억까지 되돌리는 장면이 등장합니다.',
-  },
-  {
-    id: 'crown-owner',
-    title: '침묵하는 왕관의 소유자',
-    setting: '왕관은 왕실 금고에 봉인되어 있습니다.',
-    manuscript: '19화에서는 민호가 왕관을 이미 소지한 상태로 등장합니다.',
-  },
-]
+const workspaceId = computed(() => getRouteParam(route.params.workspaceId))
+const reportId = computed(() => getRouteParam(route.params.reportId))
+const isLatestReport = computed(() => reportId.value === 'latest')
+const summaryMeta = computed(() => {
+  if (isLatestReport.value) {
+    const episodeLabel = analysisStore.latestEpisodeNumber
+      ? `${analysisStore.latestEpisodeNumber}화`
+      : '최근 분석'
+    const titleLabel =
+      analysisStore.latestTitle || analysisStore.latestResult?.file_name || '회차 원고'
+
+    return `${episodeLabel} · ${titleLabel}`
+  }
+
+  return `리포트 #${reportId.value}`
+})
+const summaryTitle = computed(() => {
+  if (isLoading.value) {
+    return '불러오는 중'
+  }
+
+  if (loadError.value) {
+    return '조회 실패'
+  }
+
+  return reportItems.value.length > 0 ? '분석 완료' : '충돌이 없습니다'
+})
+const summaryCopy = computed(() => {
+  if (isLoading.value) {
+    return '충돌 리포트를 불러오고 있습니다.'
+  }
+
+  if (loadError.value) {
+    return loadError.value
+  }
+
+  if (reportItems.value.length === 0) {
+    return '분석 결과 충돌이 발견되지 않았습니다.'
+  }
+
+  return `설정과 원문 사이에서 충돌 ${reportItems.value.length}건을 발견했습니다.`
+})
+
+function getRouteParam(param: string | string[] | undefined) {
+  if (Array.isArray(param)) {
+    return param[0] ?? ''
+  }
+
+  return param ?? ''
+}
+
+function formatScore(value: number | null | undefined) {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return ''
+  }
+
+  const normalizedScore = value <= 1 ? value * 100 : value
+  return `${Math.round(normalizedScore)}%`
+}
+
+function fallbackText(value: string, fallback: string) {
+  return value.trim() || fallback
+}
+
+function mapLatestConflict(item: ConflictCheckItem): ConflictReportItem {
+  const evidence = [item.evidence_text, item.evidence_location].filter(Boolean).join(' · ')
+
+  return {
+    id: `chunk-${item.chunk_index}`,
+    title: fallbackText(item.conflicting_sentence || item.reason, `충돌 ${item.chunk_index + 1}`),
+    manuscript: fallbackText(item.chunk_text || item.conflicting_sentence, '원문 정보가 없습니다.'),
+    evidence: fallbackText(evidence, '근거 정보가 없습니다.'),
+    recommendation: fallbackText(item.recommended_sentence, '추천 문장이 없습니다.'),
+    reason: fallbackText(item.reason, '충돌 사유가 없습니다.'),
+    confidenceLabel: formatScore(item.confidence_score),
+    hallucinationLabel: formatScore(item.hallucination_rate),
+  }
+}
+
+function mapSavedConflict(item: ConflictReportResponse, index: number): ConflictReportItem {
+  return {
+    id: String(item.id),
+    title: fallbackText(item.title, `충돌 ${index + 1}`),
+    manuscript: fallbackText(item.current_sentence, '원문 정보가 없습니다.'),
+    evidence: '저장된 충돌 리포트',
+    recommendation: fallbackText(item.suggested_sentence, '추천 문장이 없습니다.'),
+    reason: fallbackText(item.reason, '충돌 사유가 없습니다.'),
+    confidenceLabel: formatScore(item.confidence_score),
+    hallucinationLabel: formatScore(item.hallucination_score),
+  }
+}
+
+async function loadReport() {
+  loadError.value = ''
+  reportItems.value = []
+
+  if (isLatestReport.value) {
+    const latestResult = analysisStore.latestResult
+
+    if (!latestResult) {
+      loadError.value = '표시할 분석 결과가 없습니다. 회차 업로드 화면에서 다시 분석해주세요.'
+      return
+    }
+
+    reportItems.value = latestResult.conflicts
+      .filter((item) => item.is_conflict)
+      .map((item) => mapLatestConflict(item))
+    return
+  }
+
+  const numericReportId = Number(reportId.value)
+
+  if (!Number.isInteger(numericReportId) || numericReportId <= 0) {
+    loadError.value = '충돌 리포트 정보를 확인할 수 없습니다.'
+    return
+  }
+
+  isLoading.value = true
+
+  try {
+    const reports = await getConflictReports(numericReportId)
+    reportItems.value = reports.map((item, index) => mapSavedConflict(item, index))
+  } catch {
+    loadError.value = '충돌 리포트를 불러오지 못했습니다.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(() => {
+  void loadReport()
+})
 </script>
 
 <template>
@@ -39,26 +177,48 @@ const reportItems = [
     </header>
 
     <article class="conflict-report-page__summary">
-      <p class="conflict-report-page__meta">19화 · 침묵하는 왕관</p>
-      <h2 class="conflict-report-page__summary-title">분석 완료</h2>
-      <p class="conflict-report-page__summary-copy">
-        설정과 원문 사이에서 충돌 2건을 발견했습니다.
+      <p class="conflict-report-page__meta">{{ summaryMeta }}</p>
+      <h2 class="conflict-report-page__summary-title">{{ summaryTitle }}</h2>
+      <p
+        class="conflict-report-page__summary-copy"
+        :class="{ 'conflict-report-page__summary-copy--clear': reportItems.length === 0 }"
+      >
+        {{ summaryCopy }}
       </p>
     </article>
 
     <section class="conflict-report-page__list-section" aria-label="충돌 항목">
       <h2 class="conflict-report-page__section-title">충돌 항목</h2>
+      <p v-if="!isLoading && !loadError && reportItems.length === 0" class="conflict-report-page__empty">
+        충돌이 없습니다.
+      </p>
       <ul class="conflict-report-page__list">
         <li v-for="item in reportItems" :key="item.id" class="conflict-report-card">
           <h3 class="conflict-report-card__title">{{ item.title }}</h3>
           <dl class="conflict-report-card__compare">
             <div>
-              <dt>설정</dt>
-              <dd>{{ item.setting }}</dd>
-            </div>
-            <div>
               <dt>원문</dt>
               <dd>{{ item.manuscript }}</dd>
+            </div>
+            <div>
+              <dt>근거</dt>
+              <dd>{{ item.evidence }}</dd>
+            </div>
+            <div>
+              <dt>추천 문장</dt>
+              <dd>{{ item.recommendation }}</dd>
+            </div>
+            <div>
+              <dt>사유</dt>
+              <dd>{{ item.reason }}</dd>
+            </div>
+            <div v-if="item.confidenceLabel || item.hallucinationLabel">
+              <dt>점수</dt>
+              <dd>
+                <span v-if="item.confidenceLabel">신뢰도 {{ item.confidenceLabel }}</span>
+                <span v-if="item.confidenceLabel && item.hallucinationLabel"> · </span>
+                <span v-if="item.hallucinationLabel">환각률 {{ item.hallucinationLabel }}</span>
+              </dd>
             </div>
           </dl>
         </li>
@@ -152,6 +312,10 @@ const reportItems = [
   letter-spacing: 0;
 }
 
+.conflict-report-page__summary-copy--clear {
+  color: #1f9d67;
+}
+
 .conflict-report-page__list-section {
   margin-top: 24px;
 }
@@ -172,6 +336,20 @@ const reportItems = [
   margin: 13px 0 0;
   padding: 0;
   list-style: none;
+}
+
+.conflict-report-page__empty {
+  margin: 13px 0 0;
+  padding: 18px 14px;
+  color: #6f7280;
+  background: #fefefe;
+  border: 1px solid #e7e7ef;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-align: center;
 }
 
 .conflict-report-card {

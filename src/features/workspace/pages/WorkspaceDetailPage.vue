@@ -77,11 +77,14 @@ const selectedNode = computed(() =>
 )
 
 function mapEpisode(workId: number, episode: WorkspaceEpisodeResponse): WorkspaceEpisode {
+  const isConflict = episode.is_conflict
+
   return {
     id: `${workId}-${episode.episode_no}`,
     number: episode.episode_no,
     title: episode.title,
-    conflictStatus: episode.is_conflict ? 'conflict' : 'clear',
+    conflictStatus: isConflict ? 'conflict' : 'clear',
+    conflictReportId: isConflict ? episode.episode_no : undefined,
   }
 }
 
@@ -315,20 +318,20 @@ onMounted(() => {
             :key="episode.id"
             class="workspace-detail-page__episode-item"
           >
-            <button class="episode-card" type="button">
+            <RouterLink
+              v-if="episode.conflictStatus === 'conflict'"
+              class="episode-card"
+              :to="`/workspaces/${workspace.id}/reports/${episode.conflictReportId ?? episode.number}`"
+            >
               <span class="episode-card__number">{{ episode.number }}화</span>
               <span class="episode-card__title">{{ episode.title }}</span>
-              <span
-                class="episode-card__status"
-                :class="{
-                  'episode-card__status--conflict': episode.conflictStatus === 'conflict',
-                  'episode-card__status--clear': episode.conflictStatus === 'clear',
-                }"
-              >
-                {{ episode.conflictStatus === 'conflict' ? '충돌 발생' : '충돌 없음' }}
-              </span>
-              <span class="episode-card__chevron" aria-hidden="true">›</span>
-            </button>
+              <span class="episode-card__status episode-card__status--conflict">충돌 발생</span>
+            </RouterLink>
+            <div v-else class="episode-card episode-card--static">
+              <span class="episode-card__number">{{ episode.number }}화</span>
+              <span class="episode-card__title">{{ episode.title }}</span>
+              <span class="episode-card__status episode-card__status--clear">충돌 없음</span>
+            </div>
           </li>
         </ul>
       </section>
@@ -685,6 +688,11 @@ onMounted(() => {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.25);
   cursor: pointer;
   text-align: left;
+  text-decoration: none;
+}
+
+.episode-card--static {
+  cursor: default;
 }
 
 .episode-card__number {
@@ -729,16 +737,6 @@ onMounted(() => {
 .episode-card__status--clear {
   color: #1f9d67;
   background: #e8f7f0;
-}
-
-.episode-card__chevron {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  color: #6f7280;
-  font-size: 25px;
-  font-weight: 500;
-  line-height: 1;
 }
 
 .settings-panel {
