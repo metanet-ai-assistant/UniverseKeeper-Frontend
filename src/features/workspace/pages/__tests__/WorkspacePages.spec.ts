@@ -4,21 +4,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/authStore'
 import type {
-  KpiSummaryResponse,
-  WorkspaceListItemResponse,
-} from '@/features/workspace/api/workspaceApi'
+  WorkspaceDetailResponse,
+  WorkspaceEpisodeResponse,
+} from '@/features/workspace/api/workspaceDetailApi'
 import ConflictReportPage from '../ConflictReportPage.vue'
 import EpisodeUploadPage from '../EpisodeUploadPage.vue'
 import NewWorkspacePage from '../NewWorkspacePage.vue'
 import WorkspaceDetailPage from '../WorkspaceDetailPage.vue'
 import WorkspaceListPage from '../WorkspaceListPage.vue'
 
-const workspaceApiMocks = vi.hoisted(() => ({
-  getKpiSummary: vi.fn<() => Promise<KpiSummaryResponse>>(),
-  getWorkspaces: vi.fn<() => Promise<WorkspaceListItemResponse[]>>(),
+const workspaceDetailApiMocks = vi.hoisted(() => ({
+  getWorkspaceDetail: vi.fn<() => Promise<WorkspaceDetailResponse>>(),
+  getWorkspaceEpisodes: vi.fn<() => Promise<WorkspaceEpisodeResponse[]>>(),
 }))
 
-vi.mock('@/features/workspace/api/workspaceApi', () => workspaceApiMocks)
+vi.mock('@/features/workspace/api/workspaceDetailApi', () => workspaceDetailApiMocks)
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
@@ -27,7 +27,7 @@ vi.mock('vue-router', async () => {
     ...actual,
     useRoute: () => ({
       params: {
-        workspaceId: 'red-moon',
+        workspaceId: '12',
         reportId: 'mock-episode-19',
       },
     }),
@@ -38,27 +38,26 @@ vi.mock('vue-router', async () => {
 })
 
 beforeEach(() => {
-  workspaceApiMocks.getKpiSummary.mockReset()
-  workspaceApiMocks.getWorkspaces.mockReset()
-  workspaceApiMocks.getKpiSummary.mockResolvedValue({
-    total_works: 2,
-    total_requests: 48,
-    conflicted_episodes: 7,
+  workspaceDetailApiMocks.getWorkspaceDetail.mockReset()
+  workspaceDetailApiMocks.getWorkspaceEpisodes.mockReset()
+  workspaceDetailApiMocks.getWorkspaceDetail.mockResolvedValue({
+    work_id: 12,
+    genre: '판타지',
+    title: '붉은 달 아래 기억을 되돌리는 소녀의 이야기',
+    episode_count: 19,
+    total_conflict_count: 2,
+    original_text: '# 초기 설정 - 붉은 달의 기억',
   })
-  workspaceApiMocks.getWorkspaces.mockResolvedValue([
+  workspaceDetailApiMocks.getWorkspaceEpisodes.mockResolvedValue([
     {
-      work_id: 11,
-      genre: '판타지',
-      title: '별이 꺼진 뒤의 기록자',
-      episode_count: 7,
-      latest_version_conflict_count: 0,
+      episode_no: 19,
+      title: '침묵하는 왕관',
+      is_conflict: true,
     },
     {
-      work_id: 12,
-      genre: '판타지',
-      title: '붉은 달의 기억',
-      episode_count: 19,
-      latest_version_conflict_count: 2,
+      episode_no: 18,
+      title: '붉은 달의 경계',
+      is_conflict: false,
     },
   ])
 })
@@ -147,10 +146,16 @@ describe('Workspace pages', () => {
     const wrapper = mountWorkspacePage(WorkspaceDetailPage)
 
     expect(wrapper.get('h1').text()).toBe('상세 보기')
+    expect(wrapper.text()).toContain('작품 상세 정보를 불러오는 중입니다.')
+
+    await flushPromises()
+
+    expect(workspaceDetailApiMocks.getWorkspaceDetail).toHaveBeenCalledWith(12)
+    expect(workspaceDetailApiMocks.getWorkspaceEpisodes).toHaveBeenCalledWith(12)
     expect(wrapper.text()).toContain('붉은 달 아래 기억을 되돌리는 소녀의 이야기')
     expect(wrapper.text()).toContain('침묵하는 왕관')
     expect(wrapper.text()).not.toContain('# 초기 설정 - 붉은 달의 기억')
-    expect(wrapper.find('a[href="/workspaces/red-moon/episodes/new"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/workspaces/12/episodes/new"]').exists()).toBe(true)
 
     await wrapper.get('button[role="tab"]:nth-of-type(2)').trigger('click')
 
@@ -166,6 +171,17 @@ describe('Workspace pages', () => {
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
   })
 
+  it('shows an empty state when workspace has no episodes', async () => {
+    workspaceDetailApiMocks.getWorkspaceEpisodes.mockResolvedValueOnce([])
+
+    const wrapper = mountWorkspacePage(WorkspaceDetailPage)
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('등록된 회차가 없습니다.')
+    expect(wrapper.find('.workspace-detail-page__episode-list').exists()).toBe(false)
+  })
+
   it('keeps episode upload modes in a single page', async () => {
     const wrapper = mountWorkspacePage(EpisodeUploadPage)
 
@@ -173,7 +189,7 @@ describe('Workspace pages', () => {
     expect(wrapper.find('.episode-upload-page__upload-zone').exists()).toBe(true)
     expect(wrapper.text()).toContain('원고를 업로드하거나 붙여넣으세요')
     expect(wrapper.find('textarea[name="episode-setting"]').exists()).toBe(false)
-    expect(wrapper.find('a[href="/workspaces/red-moon/episodes/analyzing"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/workspaces/12/episodes/analyzing"]').exists()).toBe(true)
 
     await wrapper.get('button[role="radio"]').trigger('click')
 
