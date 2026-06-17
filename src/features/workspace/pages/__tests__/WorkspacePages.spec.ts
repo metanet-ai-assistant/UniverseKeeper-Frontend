@@ -4,6 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/authStore'
 import type {
+  KpiSummaryResponse,
+  WorkspaceListItemResponse,
+} from '@/features/workspace/api/workspaceApi'
+import type {
   WorkspaceDetailResponse,
   WorkspaceEpisodeResponse,
 } from '@/features/workspace/api/workspaceDetailApi'
@@ -13,11 +17,17 @@ import NewWorkspacePage from '../NewWorkspacePage.vue'
 import WorkspaceDetailPage from '../WorkspaceDetailPage.vue'
 import WorkspaceListPage from '../WorkspaceListPage.vue'
 
+const workspaceApiMocks = vi.hoisted(() => ({
+  getKpiSummary: vi.fn<() => Promise<KpiSummaryResponse>>(),
+  getWorkspaces: vi.fn<() => Promise<WorkspaceListItemResponse[]>>(),
+}))
+
 const workspaceDetailApiMocks = vi.hoisted(() => ({
   getWorkspaceDetail: vi.fn<() => Promise<WorkspaceDetailResponse>>(),
   getWorkspaceEpisodes: vi.fn<() => Promise<WorkspaceEpisodeResponse[]>>(),
 }))
 
+vi.mock('@/features/workspace/api/workspaceApi', () => workspaceApiMocks)
 vi.mock('@/features/workspace/api/workspaceDetailApi', () => workspaceDetailApiMocks)
 
 vi.mock('vue-router', async () => {
@@ -38,8 +48,32 @@ vi.mock('vue-router', async () => {
 })
 
 beforeEach(() => {
+  workspaceApiMocks.getKpiSummary.mockReset()
+  workspaceApiMocks.getWorkspaces.mockReset()
   workspaceDetailApiMocks.getWorkspaceDetail.mockReset()
   workspaceDetailApiMocks.getWorkspaceEpisodes.mockReset()
+
+  workspaceApiMocks.getKpiSummary.mockResolvedValue({
+    total_works: 2,
+    total_requests: 48,
+    conflicted_episodes: 7,
+  })
+  workspaceApiMocks.getWorkspaces.mockResolvedValue([
+    {
+      work_id: 11,
+      genre: '판타지',
+      title: '별이 꺼진 뒤의 기록자',
+      episode_count: 7,
+      latest_version_conflict_count: 0,
+    },
+    {
+      work_id: 12,
+      genre: '판타지',
+      title: '붉은 달의 기억',
+      episode_count: 19,
+      latest_version_conflict_count: 2,
+    },
+  ])
   workspaceDetailApiMocks.getWorkspaceDetail.mockResolvedValue({
     work_id: 12,
     genre: '판타지',
@@ -79,7 +113,7 @@ function mountWorkspacePage(component: object) {
 }
 
 describe('Workspace pages', () => {
-  it('renders workspace list with auth user and API data', async () => {
+  it('renders workspace list from API data', async () => {
     const pinia = createPinia()
     const authStore = useAuthStore(pinia)
     authStore.user = {
@@ -102,17 +136,34 @@ describe('Workspace pages', () => {
 
     await flushPromises()
 
-    expect(workspaceApiMocks.getKpiSummary).toHaveBeenCalledOnce()
-    expect(workspaceApiMocks.getWorkspaces).toHaveBeenCalledOnce()
-    expect(wrapper.get('h1').text()).toContain('유저')
-    expect(wrapper.text()).toContain('user@example.com · user')
+    expect(workspaceApiMocks.getKpiSummary).toHaveBeenCalledTimes(1)
+    expect(workspaceApiMocks.getWorkspaces).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('h1').text()).toContain('안녕하세요, 유저 작가님')
     expect(wrapper.text()).toContain('현재 2개 작품을 관리 중입니다.')
+    expect(wrapper.text()).toContain('user@example.com · user')
     expect(wrapper.text()).toContain('유저님의 워크스페이스')
     expect(wrapper.text()).toContain('별이 꺼진 뒤의 기록자')
     expect(wrapper.text()).toContain('미검토 2건')
-    expect(wrapper.text()).toContain('총 회차 수 19회')
     expect(wrapper.find('a[href="/workspaces/new"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/workspaces/12"]').exists()).toBe(true)
+  })
+
+  it('shows an empty state when there are no workspaces', async () => {
+    workspaceApiMocks.getKpiSummary.mockResolvedValueOnce({
+      total_works: 0,
+      total_requests: 0,
+      conflicted_episodes: 0,
+    })
+    workspaceApiMocks.getWorkspaces.mockResolvedValueOnce([])
+
+    const wrapper = mountWorkspacePage(WorkspaceListPage)
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('아직 등록된 작품이 없습니다.')
+    expect(wrapper.find('.workspace-card').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('별이 꺼진 후의 기록작')
+    expect(wrapper.text()).not.toContain('붉은 달의 기억')
   })
 
   it('keeps new workspace creation states in a single page', async () => {
@@ -138,8 +189,21 @@ describe('Workspace pages', () => {
     expect(wrapper.text()).toContain('원고를 업로드하거나 붙여넣으세요')
     expect(wrapper.find('textarea[name="workspace-settings"]').exists()).toBe(false)
 
+    const workspaceFile = new File(['abc'], 'workspace-setting.txt', { type: 'text/plain' })
+    const workspaceFileInput = wrapper.get<HTMLInputElement>('input[type="file"]')
+
+    Object.defineProperty(workspaceFileInput.element, 'files', {
+      configurable: true,
+      value: [workspaceFile],
+    })
+    await workspaceFileInput.trigger('change')
+
+    expect(wrapper.text()).toContain('workspace-setting.txt')
+    expect(wrapper.text()).toContain('3B')
+
     await wrapper.get('form').trigger('submit')
     expect(wrapper.get('h1').text()).toBe('새 작품 만들기')
+    expect(wrapper.text()).toContain('작품명을 입력해주세요.')
   })
 
   it('keeps workspace detail tabs and graph modal in a single page', async () => {
@@ -189,7 +253,20 @@ describe('Workspace pages', () => {
     expect(wrapper.find('.episode-upload-page__upload-zone').exists()).toBe(true)
     expect(wrapper.text()).toContain('원고를 업로드하거나 붙여넣으세요')
     expect(wrapper.find('textarea[name="episode-setting"]').exists()).toBe(false)
-    expect(wrapper.find('a[href="/workspaces/12/episodes/analyzing"]').exists()).toBe(true)
+    expect(wrapper.get('button[type="submit"]').text()).toBe('분석 시작')
+
+    const episodeFile = new File(['abc'], 'episode-20.md', { type: 'text/markdown' })
+    const episodeFileInput = wrapper.get<HTMLInputElement>('input[type="file"]')
+
+    Object.defineProperty(episodeFileInput.element, 'files', {
+      configurable: true,
+      value: [episodeFile],
+    })
+    await episodeFileInput.trigger('change')
+
+    expect(wrapper.text()).toContain('episode-20.md')
+    expect(wrapper.text()).toContain('3B')
+    expect(wrapper.get('.episode-upload-page__file-button').text()).toContain('파일 변경')
 
     await wrapper.get('button[role="radio"]').trigger('click')
 

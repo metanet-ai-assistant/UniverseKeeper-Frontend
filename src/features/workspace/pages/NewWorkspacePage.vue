@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import logoApp from '@/assets/images/brand/Logo2.svg'
 import uploadIcon from '@/assets/images/icons/Upload.png'
+import { ingestWorkspaceFile } from '@/features/workspace/api/workspaceIngestApi'
 
 type CreationMode = 'manual' | 'upload'
 
@@ -11,6 +13,12 @@ const genre = ref('')
 const description = ref('')
 const settingText = ref('')
 const selectedMode = ref<CreationMode>('manual')
+const selectedFile = ref<File | null>(null)
+const isSubmitting = ref(false)
+const feedbackMessage = ref('')
+const feedbackType = ref<'error' | 'success'>('success')
+const router = useRouter()
+const maxUploadBytes = 10 * 1024 * 1024
 
 const creationModes: Array<{
   id: CreationMode
@@ -33,17 +41,110 @@ const pageClass = computed(() => ({
   'new-workspace-page--upload': selectedMode.value === 'upload',
 }))
 
-function selectMode(mode: CreationMode) {
-  selectedMode.value = mode
+const selectedFileMeta = computed(() => {
+  if (!selectedFile.value) {
+    return ''
+  }
+
+  return `${selectedFile.value.name} · ${formatFileSize(selectedFile.value.size)}`
+})
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes}B`
+  }
+
+  const kilobytes = bytes / 1024
+
+  if (kilobytes < 1024) {
+    return `${kilobytes.toFixed(1)}KB`
+  }
+
+  return `${(kilobytes / 1024).toFixed(1)}MB`
 }
 
-function handleCreate() {
-  return {
-    title: title.value.trim(),
-    genre: genre.value.trim(),
-    description: description.value.trim(),
-    mode: selectedMode.value,
-    settingText: settingText.value.trim(),
+function selectMode(mode: CreationMode) {
+  selectedMode.value = mode
+  feedbackMessage.value = ''
+}
+
+function handleFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  selectedFile.value = input.files?.[0] ?? null
+  feedbackMessage.value = selectedFile.value ? `${selectedFile.value.name} 파일을 선택했습니다.` : ''
+  feedbackType.value = 'success'
+}
+
+function createManualSettingFile() {
+  const fileName = `${title.value.trim() || 'workspace-setting'}.txt`
+  return new File([settingText.value.trim()], fileName, { type: 'text/plain' })
+}
+
+function validateWorkspaceInput() {
+  if (!title.value.trim()) {
+    return '작품명을 입력해주세요.'
+  }
+
+  if (!genre.value.trim()) {
+    return '장르를 입력해주세요.'
+  }
+
+  if (selectedMode.value === 'manual' && !settingText.value.trim()) {
+    return '초기 설정을 입력해주세요.'
+  }
+
+  if (selectedMode.value === 'upload') {
+    const uploadFile = selectedFile.value
+
+    if (!uploadFile) {
+      return '업로드할 원고 파일을 선택해주세요.'
+    }
+
+    if (uploadFile.size > maxUploadBytes) {
+      return '10MB 이하의 원고 파일만 업로드할 수 있습니다.'
+    }
+  }
+
+  return ''
+}
+
+async function handleCreate() {
+  if (isSubmitting.value) {
+    return
+  }
+
+  const validationMessage = validateWorkspaceInput()
+
+  if (validationMessage) {
+    feedbackType.value = 'error'
+    feedbackMessage.value = validationMessage
+    return
+  }
+
+  isSubmitting.value = true
+  feedbackMessage.value = ''
+
+  try {
+    const file = selectedMode.value === 'manual' ? createManualSettingFile() : selectedFile.value
+
+    if (!file) {
+      throw new Error('File is required.')
+    }
+
+    await ingestWorkspaceFile({
+      file,
+      title: title.value.trim(),
+      genre: genre.value.trim(),
+      description: description.value.trim(),
+    })
+    feedbackType.value = 'success'
+    feedbackMessage.value = '작품을 생성했습니다.'
+    await router.push('/workspaces')
+  } catch {
+    feedbackType.value = 'error'
+    feedbackMessage.value = '작품 생성에 실패했습니다.'
+  } finally {
+    isSubmitting.value = false
   }
 }
 </script>
@@ -135,13 +236,26 @@ function handleCreate() {
         <img class="new-workspace-page__upload-icon" :src="uploadIcon" alt="" aria-hidden="true" />
         <p class="new-workspace-page__upload-title">원고를 업로드하거나 붙여넣으세요</p>
         <p class="new-workspace-page__upload-copy">TXT · DOCS 파일, 최대 10MB</p>
+        <p v-if="selectedFileMeta" class="new-workspace-page__file-meta" aria-live="polite">
+          {{ selectedFileMeta }}
+        </p>
         <label class="new-workspace-page__file-button">
-          파일 선택
-          <input type="file" accept=".txt,.doc,.docx" />
+          {{ selectedFile ? '파일 변경' : '파일 선택' }}
+          <input type="file" accept=".txt,.doc,.docx" @change="handleFileChange" />
         </label>
       </div>
 
-      <button class="new-workspace-page__submit" type="submit">작품 생성</button>
+      <p
+        v-if="feedbackMessage"
+        class="new-workspace-page__feedback"
+        :class="{ 'new-workspace-page__feedback--error': feedbackType === 'error' }"
+      >
+        {{ feedbackMessage }}
+      </p>
+
+      <button class="new-workspace-page__submit" type="submit" :disabled="isSubmitting">
+        {{ isSubmitting ? '생성 중' : '작품 생성' }}
+      </button>
     </form>
   </section>
 </template>
@@ -395,13 +509,31 @@ function handleCreate() {
   letter-spacing: 0;
 }
 
+.new-workspace-page__file-meta {
+  width: min(100%, 260px);
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  overflow: hidden;
+  color: #2d2d2d;
+  background: #f5f8ff;
+  border: 1px solid #dfe8ff;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .new-workspace-page__file-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100px;
+  min-width: 100px;
   height: 42px;
   margin-top: 14px;
+  padding: 0 16px;
   color: #2d2d2d;
   background: #fefefe;
   border: 1px solid #e7e7ef;
@@ -421,6 +553,19 @@ function handleCreate() {
   pointer-events: none;
 }
 
+.new-workspace-page__feedback {
+  margin: 14px 0 0;
+  color: var(--color-brand-blue);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.new-workspace-page__feedback--error {
+  color: #ff3131;
+}
+
 .new-workspace-page__submit {
   display: inline-flex;
   align-items: center;
@@ -438,6 +583,11 @@ function handleCreate() {
   line-height: 1;
   letter-spacing: 0;
   cursor: pointer;
+}
+
+.new-workspace-page__submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .new-workspace-page__visually-hidden {

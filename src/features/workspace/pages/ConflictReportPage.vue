@@ -5,7 +5,7 @@ import { useRoute } from 'vue-router'
 import logoApp from '@/assets/images/brand/Logo2.svg'
 
 const route = useRoute()
-const workspaceId = computed(() => String(route.params.workspaceId ?? 'red-moon'))
+const workspaceId = computed(() => String(route.params.workspaceId ?? ''))
 
 const reportItems = [
   {

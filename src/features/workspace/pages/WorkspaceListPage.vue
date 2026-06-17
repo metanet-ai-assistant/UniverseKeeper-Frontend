@@ -13,23 +13,24 @@ import {
   type KpiSummaryResponse,
   type WorkspaceListItemResponse,
 } from '@/features/workspace/api/workspaceApi'
-import { mockWorkspaceStats } from '@/features/workspace/mocks/workspaces'
 import type { WorkspaceDashboardStats, WorkspaceSummary } from '@/features/workspace/types'
+
+const emptyDashboardStats: WorkspaceDashboardStats = {
+  userName: '',
+  totalWorks: 0,
+  totalRequests: 0,
+  mergeConflicts: 0,
+}
 
 const authStore = useAuthStore()
 const router = useRouter()
 const isLoggingOut = ref(false)
 const isLoading = ref(true)
 const loadError = ref('')
-const dashboardStats = ref<WorkspaceDashboardStats>({
-  ...mockWorkspaceStats,
-  totalWorks: 0,
-  totalRequests: 0,
-  mergeConflicts: 0,
-})
+const dashboardStats = ref<WorkspaceDashboardStats>({ ...emptyDashboardStats })
 const workspaces = ref<WorkspaceSummary[]>([])
 
-const ownerName = computed(() => authStore.user?.user_name || mockWorkspaceStats.userName)
+const ownerName = computed(() => authStore.user?.user_name || '작가')
 const greetingCopy = computed(
   () => `현재 ${dashboardStats.value.totalWorks}개 작품을 관리 중입니다.`,
 )
@@ -41,17 +42,17 @@ const memberInfo = computed(() => {
   return `${authStore.user.email} · ${authStore.user.role}`
 })
 
-function progressPercent(approvedCount: number, totalCount: number) {
+function progressPercent(conflictFreeCount: number, totalCount: number) {
   if (totalCount <= 0) {
     return 0
   }
 
-  return Math.min(100, Math.round((approvedCount / totalCount) * 100))
+  return Math.min(100, Math.round((conflictFreeCount / totalCount) * 100))
 }
 
 function mapDashboardStats(kpiSummary: KpiSummaryResponse): WorkspaceDashboardStats {
   return {
-    userName: mockWorkspaceStats.userName,
+    userName: '',
     totalWorks: kpiSummary.total_works,
     totalRequests: kpiSummary.total_requests,
     mergeConflicts: kpiSummary.conflicted_episodes,
@@ -85,12 +86,7 @@ async function loadWorkspaceDashboard() {
     workspaces.value = workspaceList.map(mapWorkspaceSummary)
   } catch {
     loadError.value = '작품 목록을 불러오지 못했습니다.'
-    dashboardStats.value = {
-      ...mockWorkspaceStats,
-      totalWorks: 0,
-      totalRequests: 0,
-      mergeConflicts: 0,
-    }
+    dashboardStats.value = { ...emptyDashboardStats }
     workspaces.value = []
   } finally {
     isLoading.value = false
@@ -155,9 +151,7 @@ onMounted(() => {
     </dl>
 
     <div class="workspace-list-page__section-header">
-      <h2 class="workspace-list-page__section-title">
-        {{ ownerName }}님의 워크스페이스
-      </h2>
+      <h2 class="workspace-list-page__section-title">{{ ownerName }}님의 워크스페이스</h2>
       <RouterLink class="workspace-list-page__new-link" to="/workspaces/new">
         <img class="workspace-list-page__new-icon" :src="addIcon" alt="" aria-hidden="true" />
         <span>새 작품</span>
@@ -211,9 +205,7 @@ onMounted(() => {
             ></span>
           </div>
 
-          <p class="workspace-card__approval">
-            총 회차 수 {{ workspace.episodeCount }}회
-          </p>
+          <p class="workspace-card__approval">총 회차 수 {{ workspace.episodeCount }}회</p>
         </RouterLink>
       </li>
     </ul>

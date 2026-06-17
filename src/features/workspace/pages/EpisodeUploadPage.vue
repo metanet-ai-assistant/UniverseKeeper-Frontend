@@ -1,21 +1,49 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import logoApp from '@/assets/images/brand/Logo2.svg'
 import uploadIcon from '@/assets/images/icons/Upload.png'
+import { ingestEpisode } from '@/features/workspace/api/workspaceIngestApi'
 
 type EpisodeInputMode = 'manual' | 'upload'
 
 const route = useRoute()
+const router = useRouter()
 const selectedMode = ref<EpisodeInputMode>('upload')
 const episodeNumber = ref('19')
 const episodeTitle = ref('침묵하는 왕관')
 const settingText = ref('')
+const selectedFile = ref<File | null>(null)
+const isSubmitting = ref(false)
+const feedbackMessage = ref('')
+const feedbackType = ref<'error' | 'success'>('success')
+const maxUploadBytes = 10 * 1024 * 1024
 
-const workspaceId = computed(() => String(route.params.workspaceId ?? 'red-moon'))
+const workspaceId = computed(() => String(route.params.workspaceId ?? ''))
 
 const analysisPath = computed(() => `/workspaces/${workspaceId.value}/episodes/analyzing`)
+const selectedFileMeta = computed(() => {
+  if (!selectedFile.value) {
+    return ''
+  }
+
+  return `${selectedFile.value.name} · ${formatFileSize(selectedFile.value.size)}`
+})
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes}B`
+  }
+
+  const kilobytes = bytes / 1024
+
+  if (kilobytes < 1024) {
+    return `${kilobytes.toFixed(1)}KB`
+  }
+
+  return `${(kilobytes / 1024).toFixed(1)}MB`
+}
 
 const inputModes: Array<{
   id: EpisodeInputMode
@@ -36,6 +64,89 @@ const inputModes: Array<{
 
 function selectMode(mode: EpisodeInputMode) {
   selectedMode.value = mode
+  feedbackMessage.value = ''
+}
+
+function handleFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  selectedFile.value = input.files?.[0] ?? null
+  feedbackMessage.value = selectedFile.value ? `${selectedFile.value.name} 파일을 선택했습니다.` : ''
+  feedbackType.value = 'success'
+}
+
+function validateEpisodeInput() {
+  const numericWorkId = Number(workspaceId.value)
+
+  if (!Number.isInteger(numericWorkId) || numericWorkId <= 0) {
+    return '작품 정보를 확인할 수 없습니다.'
+  }
+
+  if (!episodeTitle.value.trim()) {
+    return '회차 제목을 입력해주세요.'
+  }
+
+  if (selectedMode.value === 'manual' && !settingText.value.trim()) {
+    return '회차 내용을 입력해주세요.'
+  }
+
+  if (selectedMode.value === 'upload') {
+    const uploadFile = selectedFile.value
+
+    if (!uploadFile) {
+      return '업로드할 회차 파일을 선택해주세요.'
+    }
+
+    if (uploadFile.size > maxUploadBytes) {
+      return '10MB 이하의 회차 파일만 업로드할 수 있습니다.'
+    }
+  }
+
+  return ''
+}
+
+async function resolveEpisodeContent() {
+  if (selectedMode.value === 'manual') {
+    return settingText.value.trim()
+  }
+
+  if (!selectedFile.value) {
+    return ''
+  }
+
+  return selectedFile.value.text()
+}
+
+async function handleSubmit() {
+  if (isSubmitting.value) {
+    return
+  }
+
+  const validationMessage = validateEpisodeInput()
+
+  if (validationMessage) {
+    feedbackType.value = 'error'
+    feedbackMessage.value = validationMessage
+    return
+  }
+
+  isSubmitting.value = true
+  feedbackMessage.value = ''
+
+  try {
+    await ingestEpisode({
+      workId: Number(workspaceId.value),
+      title: episodeTitle.value.trim(),
+      content: await resolveEpisodeContent(),
+    })
+    feedbackType.value = 'success'
+    feedbackMessage.value = '회차 업로드를 완료했습니다.'
+    await router.push(analysisPath.value)
+  } catch {
+    feedbackType.value = 'error'
+    feedbackMessage.value = '회차 업로드에 실패했습니다.'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -54,7 +165,7 @@ function selectMode(mode: EpisodeInputMode) {
       <h1 id="episode-upload-title" class="episode-upload-page__title">회차 업로드</h1>
     </header>
 
-    <form class="episode-upload-page__form">
+    <form class="episode-upload-page__form" @submit.prevent="handleSubmit">
       <div class="episode-upload-page__field-row">
         <label class="episode-upload-page__field episode-upload-page__field--episode">
           <span class="episode-upload-page__label">회차</span>
@@ -109,9 +220,12 @@ function selectMode(mode: EpisodeInputMode) {
         <img class="episode-upload-page__upload-icon" :src="uploadIcon" alt="" aria-hidden="true" />
         <p class="episode-upload-page__upload-title">원고를 업로드하거나 붙여넣으세요</p>
         <p class="episode-upload-page__upload-copy">TXT · MD 파일, 최대 10MB</p>
+        <p v-if="selectedFileMeta" class="episode-upload-page__file-meta" aria-live="polite">
+          {{ selectedFileMeta }}
+        </p>
         <label class="episode-upload-page__file-button">
-          파일 선택
-          <input type="file" accept=".txt,.md" />
+          {{ selectedFile ? '파일 변경' : '파일 선택' }}
+          <input type="file" accept=".txt,.md" @change="handleFileChange" />
         </label>
       </div>
 
@@ -124,7 +238,17 @@ function selectMode(mode: EpisodeInputMode) {
         </ul>
       </section>
 
-      <RouterLink class="episode-upload-page__submit" :to="analysisPath">분석 시작</RouterLink>
+      <p
+        v-if="feedbackMessage"
+        class="episode-upload-page__feedback"
+        :class="{ 'episode-upload-page__feedback--error': feedbackType === 'error' }"
+      >
+        {{ feedbackMessage }}
+      </p>
+
+      <button class="episode-upload-page__submit" type="submit" :disabled="isSubmitting">
+        {{ isSubmitting ? '업로드 중' : '분석 시작' }}
+      </button>
     </form>
   </section>
 </template>
@@ -370,6 +494,23 @@ function selectMode(mode: EpisodeInputMode) {
   letter-spacing: 0;
 }
 
+.episode-upload-page__file-meta {
+  width: min(100%, 260px);
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  overflow: hidden;
+  color: #2d2d2d;
+  background: #f5f8ff;
+  border: 1px solid #dfe8ff;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .episode-upload-page__file-button {
   display: inline-flex;
   align-items: center;
@@ -434,6 +575,20 @@ function selectMode(mode: EpisodeInputMode) {
   content: '✓ ';
 }
 
+.episode-upload-page__feedback {
+  width: 338px;
+  margin: 14px 0 0;
+  color: var(--color-brand-blue);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.episode-upload-page__feedback--error {
+  color: #ff3131;
+}
+
 .episode-upload-page__submit {
   display: inline-flex;
   align-items: center;
@@ -443,12 +598,19 @@ function selectMode(mode: EpisodeInputMode) {
   margin-top: 14px;
   color: #fefefe;
   background: var(--color-brand-blue);
+  border: 0;
   border-radius: 12px;
   font-size: 16px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0;
+  cursor: pointer;
   text-decoration: none;
+}
+
+.episode-upload-page__submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .episode-upload-page__visually-hidden {

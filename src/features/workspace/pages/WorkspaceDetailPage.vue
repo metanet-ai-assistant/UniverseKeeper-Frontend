@@ -106,130 +106,135 @@ onMounted(() => {
     <p v-if="isLoading" class="workspace-detail-page__state">
       작품 상세 정보를 불러오는 중입니다.
     </p>
-    <p v-else-if="loadError" class="workspace-detail-page__state workspace-detail-page__state--error">
+    <p
+      v-else-if="loadError"
+      class="workspace-detail-page__state workspace-detail-page__state--error"
+    >
       {{ loadError }}
     </p>
 
     <template v-else-if="workspace">
-    <article class="workspace-detail-page__summary">
-      <div>
-        <p class="workspace-detail-page__meta">
-          {{ workspace.genre }} · 총 {{ workspace.episodeCount }}화
-        </p>
-        <h2 class="workspace-detail-page__work-title">{{ workspace.title }}</h2>
-        <p class="workspace-detail-page__setting-count">
-          {{ workspace.initialSetting ? '초기 설정 조회 가능' : '초기 설정 없음' }}
-        </p>
-      </div>
-      <span class="workspace-detail-page__conflict-pill">충돌 {{ workspace.conflictCount }}건</span>
-    </article>
-
-    <div class="workspace-detail-page__tabs" role="tablist" aria-label="상세 보기 탭">
-      <button
-        class="workspace-detail-page__tab"
-        :class="{ 'workspace-detail-page__tab--selected': selectedTab === 'episodes' }"
-        type="button"
-        role="tab"
-        :aria-selected="selectedTab === 'episodes'"
-        @click="selectTab('episodes')"
-      >
-        회차
-      </button>
-      <button
-        class="workspace-detail-page__tab"
-        :class="{ 'workspace-detail-page__tab--selected': selectedTab === 'settings' }"
-        type="button"
-        role="tab"
-        :aria-selected="selectedTab === 'settings'"
-        @click="selectTab('settings')"
-      >
-        초기 설정
-      </button>
-    </div>
-
-    <section v-if="selectedTab === 'episodes'" class="workspace-detail-page__episodes">
-      <div class="workspace-detail-page__section-header">
-        <h2 class="workspace-detail-page__section-title">회차 리스트</h2>
-        <RouterLink
-          class="workspace-detail-page__new-episode"
-          :to="`/workspaces/${workspace.id}/episodes/new`"
-        >
-          + 새 회차
-        </RouterLink>
-      </div>
-
-      <p v-if="workspace.episodes.length === 0" class="workspace-detail-page__empty">
-        등록된 회차가 없습니다.
-      </p>
-
-      <ul v-else class="workspace-detail-page__episode-list" aria-label="회차 리스트">
-        <li
-          v-for="episode in workspace.episodes"
-          :key="episode.id"
-          class="workspace-detail-page__episode-item"
-        >
-          <button class="episode-card" type="button">
-            <span class="episode-card__number">{{ episode.number }}화</span>
-            <span class="episode-card__title">{{ episode.title }}</span>
-            <span
-              class="episode-card__status"
-              :class="{
-                'episode-card__status--conflict': episode.conflictStatus === 'conflict',
-                'episode-card__status--clear': episode.conflictStatus === 'clear',
-              }"
-            >
-              {{ episode.conflictStatus === 'conflict' ? '충돌 발생' : '충돌 없음' }}
-            </span>
-            <span class="episode-card__chevron" aria-hidden="true">›</span>
-          </button>
-        </li>
-      </ul>
-    </section>
-
-    <section v-else class="settings-panel" aria-label="초기 설정">
-      <header class="settings-panel__header">
-        <h2 class="settings-panel__title">설정 보기</h2>
-        <div class="settings-panel__actions">
-          <button
-            class="settings-panel__action settings-panel__action--graph"
-            type="button"
-            @click="openGraph"
-          >
-            그래프 보기
-            <img class="settings-panel__action-icon" :src="graphIcon" alt="" aria-hidden="true" />
-          </button>
-          <button class="settings-panel__action settings-panel__action--edit" type="button">
-            수정 및 그래프 재생성
-            <img class="settings-panel__action-icon" :src="editIcon" alt="" aria-hidden="true" />
-          </button>
+      <article class="workspace-detail-page__summary">
+        <div>
+          <p class="workspace-detail-page__meta">
+            {{ workspace.genre }} · 총 {{ workspace.episodeCount }}화
+          </p>
+          <h2 class="workspace-detail-page__work-title">{{ workspace.title }}</h2>
+          <p class="workspace-detail-page__setting-count">
+            {{ workspace.initialSetting ? '초기 설정 조회 가능' : '초기 설정 없음' }}
+          </p>
         </div>
-      </header>
-      <div class="settings-panel__divider" aria-hidden="true"></div>
-      <pre class="settings-panel__content">{{
-        workspace.initialSetting || '등록된 초기 설정이 없습니다.'
-      }}</pre>
-    </section>
+        <span class="workspace-detail-page__conflict-pill">
+          충돌 {{ workspace.conflictCount }}건
+        </span>
+      </article>
 
-    <div
-      v-if="isGraphOpen"
-      class="graph-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="graph-modal-title"
-    >
-      <section class="graph-modal__panel">
-        <h2 id="graph-modal-title" class="graph-modal__title">Graph</h2>
+      <div class="workspace-detail-page__tabs" role="tablist" aria-label="상세 보기 탭">
         <button
-          class="graph-modal__close"
+          class="workspace-detail-page__tab"
+          :class="{ 'workspace-detail-page__tab--selected': selectedTab === 'episodes' }"
           type="button"
-          aria-label="그래프 닫기"
-          @click="closeGraph"
+          role="tab"
+          :aria-selected="selectedTab === 'episodes'"
+          @click="selectTab('episodes')"
         >
-          ×
+          회차
         </button>
-        <div class="graph-modal__canvas" aria-label="그래프 미리보기"></div>
+        <button
+          class="workspace-detail-page__tab"
+          :class="{ 'workspace-detail-page__tab--selected': selectedTab === 'settings' }"
+          type="button"
+          role="tab"
+          :aria-selected="selectedTab === 'settings'"
+          @click="selectTab('settings')"
+        >
+          초기 설정
+        </button>
+      </div>
+
+      <section v-if="selectedTab === 'episodes'" class="workspace-detail-page__episodes">
+        <div class="workspace-detail-page__section-header">
+          <h2 class="workspace-detail-page__section-title">회차 리스트</h2>
+          <RouterLink
+            class="workspace-detail-page__new-episode"
+            :to="`/workspaces/${workspace.id}/episodes/new`"
+          >
+            + 새 회차
+          </RouterLink>
+        </div>
+
+        <p v-if="workspace.episodes.length === 0" class="workspace-detail-page__empty">
+          등록된 회차가 없습니다.
+        </p>
+
+        <ul v-else class="workspace-detail-page__episode-list" aria-label="회차 리스트">
+          <li
+            v-for="episode in workspace.episodes"
+            :key="episode.id"
+            class="workspace-detail-page__episode-item"
+          >
+            <button class="episode-card" type="button">
+              <span class="episode-card__number">{{ episode.number }}화</span>
+              <span class="episode-card__title">{{ episode.title }}</span>
+              <span
+                class="episode-card__status"
+                :class="{
+                  'episode-card__status--conflict': episode.conflictStatus === 'conflict',
+                  'episode-card__status--clear': episode.conflictStatus === 'clear',
+                }"
+              >
+                {{ episode.conflictStatus === 'conflict' ? '충돌 발생' : '충돌 없음' }}
+              </span>
+              <span class="episode-card__chevron" aria-hidden="true">›</span>
+            </button>
+          </li>
+        </ul>
       </section>
-    </div>
+
+      <section v-else class="settings-panel" aria-label="초기 설정">
+        <header class="settings-panel__header">
+          <h2 class="settings-panel__title">설정 보기</h2>
+          <div class="settings-panel__actions">
+            <button
+              class="settings-panel__action settings-panel__action--graph"
+              type="button"
+              @click="openGraph"
+            >
+              그래프 보기
+              <img class="settings-panel__action-icon" :src="graphIcon" alt="" aria-hidden="true" />
+            </button>
+            <button class="settings-panel__action settings-panel__action--edit" type="button">
+              수정 및 그래프 재생성
+              <img class="settings-panel__action-icon" :src="editIcon" alt="" aria-hidden="true" />
+            </button>
+          </div>
+        </header>
+        <div class="settings-panel__divider" aria-hidden="true"></div>
+        <pre class="settings-panel__content">{{
+          workspace.initialSetting || '등록된 초기 설정이 없습니다.'
+        }}</pre>
+      </section>
+
+      <div
+        v-if="isGraphOpen"
+        class="graph-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="graph-modal-title"
+      >
+        <section class="graph-modal__panel">
+          <h2 id="graph-modal-title" class="graph-modal__title">Graph</h2>
+          <button
+            class="graph-modal__close"
+            type="button"
+            aria-label="그래프 닫기"
+            @click="closeGraph"
+          >
+            ×
+          </button>
+          <div class="graph-modal__canvas" aria-label="그래프 미리보기"></div>
+        </section>
+      </div>
     </template>
   </section>
 </template>
