@@ -1,13 +1,24 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/stores/authStore'
+import type {
+  KpiSummaryResponse,
+  WorkspaceListItemResponse,
+} from '@/features/workspace/api/workspaceApi'
 import ConflictReportPage from '../ConflictReportPage.vue'
 import EpisodeUploadPage from '../EpisodeUploadPage.vue'
 import NewWorkspacePage from '../NewWorkspacePage.vue'
 import WorkspaceDetailPage from '../WorkspaceDetailPage.vue'
 import WorkspaceListPage from '../WorkspaceListPage.vue'
+
+const workspaceApiMocks = vi.hoisted(() => ({
+  getKpiSummary: vi.fn<() => Promise<KpiSummaryResponse>>(),
+  getWorkspaces: vi.fn<() => Promise<WorkspaceListItemResponse[]>>(),
+}))
+
+vi.mock('@/features/workspace/api/workspaceApi', () => workspaceApiMocks)
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
@@ -24,6 +35,32 @@ vi.mock('vue-router', async () => {
       push: vi.fn<() => Promise<void> | void>(),
     }),
   }
+})
+
+beforeEach(() => {
+  workspaceApiMocks.getKpiSummary.mockReset()
+  workspaceApiMocks.getWorkspaces.mockReset()
+  workspaceApiMocks.getKpiSummary.mockResolvedValue({
+    total_works: 2,
+    total_requests: 48,
+    conflicted_episodes: 7,
+  })
+  workspaceApiMocks.getWorkspaces.mockResolvedValue([
+    {
+      work_id: 11,
+      genre: '판타지',
+      title: '별이 꺼진 뒤의 기록자',
+      episode_count: 7,
+      latest_version_conflict_count: 0,
+    },
+    {
+      work_id: 12,
+      genre: '판타지',
+      title: '붉은 달의 기억',
+      episode_count: 19,
+      latest_version_conflict_count: 2,
+    },
+  ])
 })
 
 const routerLinkStub = {
@@ -43,7 +80,7 @@ function mountWorkspacePage(component: object) {
 }
 
 describe('Workspace pages', () => {
-  it('renders workspace list with auth user and mock data', () => {
+  it('renders workspace list with auth user and API data', async () => {
     const pinia = createPinia()
     const authStore = useAuthStore(pinia)
     authStore.user = {
@@ -62,13 +99,21 @@ describe('Workspace pages', () => {
       },
     })
 
-    expect(wrapper.get('h1').text()).toContain('안녕하세요, 유저 작가님')
+    expect(wrapper.text()).toContain('작품 목록을 불러오는 중입니다.')
+
+    await flushPromises()
+
+    expect(workspaceApiMocks.getKpiSummary).toHaveBeenCalledOnce()
+    expect(workspaceApiMocks.getWorkspaces).toHaveBeenCalledOnce()
+    expect(wrapper.get('h1').text()).toContain('유저')
     expect(wrapper.text()).toContain('user@example.com · user')
+    expect(wrapper.text()).toContain('현재 2개 작품을 관리 중입니다.')
     expect(wrapper.text()).toContain('유저님의 워크스페이스')
-    expect(wrapper.text()).toContain('별이 꺼진 후의 기록작')
+    expect(wrapper.text()).toContain('별이 꺼진 뒤의 기록자')
     expect(wrapper.text()).toContain('미검토 2건')
+    expect(wrapper.text()).toContain('총 회차 수 19회')
     expect(wrapper.find('a[href="/workspaces/new"]').exists()).toBe(true)
-    expect(wrapper.find('a[href="/workspaces/red-moon"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/workspaces/12"]').exists()).toBe(true)
   })
 
   it('keeps new workspace creation states in a single page', async () => {
