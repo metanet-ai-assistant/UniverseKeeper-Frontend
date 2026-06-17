@@ -8,7 +8,7 @@ const route = useRoute()
 const router = useRouter()
 const progress = ref(0)
 
-const workspaceId = computed(() => String(route.params.workspaceId ?? 'red-moon'))
+const workspaceId = computed(() => String(route.params.workspaceId ?? ''))
 const progressStyle = computed(() => ({
   '--analysis-progress': `${progress.value}%`,
 }))

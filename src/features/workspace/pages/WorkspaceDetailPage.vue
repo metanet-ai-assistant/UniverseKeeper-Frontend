@@ -1,26 +1,75 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import logoApp from '@/assets/images/brand/Logo2.svg'
 import editIcon from '@/assets/images/icons/edit.png'
 import graphIcon from '@/assets/images/icons/graph.png'
-import { mockWorkspaceDetails } from '@/features/workspace/mocks/workspaces'
-import type { WorkspaceDetail, WorkspaceDetailTab } from '@/features/workspace/types'
+import {
+  getWorkspaceDetail,
+  getWorkspaceEpisodes,
+  type WorkspaceDetailResponse,
+  type WorkspaceEpisodeResponse,
+} from '@/features/workspace/api/workspaceDetailApi'
+import type { WorkspaceDetail, WorkspaceDetailTab, WorkspaceEpisode } from '@/features/workspace/types'
 
 const route = useRoute()
 const selectedTab = ref<WorkspaceDetailTab>('episodes')
 const isGraphOpen = ref(false)
-const defaultWorkspace = mockWorkspaceDetails[0] as WorkspaceDetail
+const isLoading = ref(true)
+const loadError = ref('')
+const workspace = ref<WorkspaceDetail | null>(null)
 
-const workspace = computed<WorkspaceDetail>(() => {
-  const workspaceId = String(route.params.workspaceId ?? '')
+const workId = computed(() => Number(route.params.workspaceId))
 
-  return (
-    mockWorkspaceDetails.find((workspaceDetail) => workspaceDetail.id === workspaceId) ??
-    defaultWorkspace
-  )
-})
+function mapEpisode(workId: number, episode: WorkspaceEpisodeResponse): WorkspaceEpisode {
+  return {
+    id: `${workId}-${episode.episode_no}`,
+    number: episode.episode_no,
+    title: episode.title,
+    conflictStatus: episode.is_conflict ? 'conflict' : 'clear',
+  }
+}
+
+function mapWorkspaceDetail(
+  detail: WorkspaceDetailResponse,
+  episodes: WorkspaceEpisodeResponse[],
+): WorkspaceDetail {
+  return {
+    id: String(detail.work_id),
+    title: detail.title,
+    genre: detail.genre,
+    episodeCount: detail.episode_count,
+    conflictCount: detail.total_conflict_count,
+    episodes: episodes.map((episode) => mapEpisode(detail.work_id, episode)),
+    initialSetting: detail.original_text,
+  }
+}
+
+async function loadWorkspaceDetail() {
+  isLoading.value = true
+  loadError.value = ''
+
+  if (!Number.isInteger(workId.value) || workId.value <= 0) {
+    workspace.value = null
+    loadError.value = '작품 정보를 불러올 수 없는 주소입니다.'
+    isLoading.value = false
+    return
+  }
+
+  try {
+    const [detail, episodes] = await Promise.all([
+      getWorkspaceDetail(workId.value),
+      getWorkspaceEpisodes(workId.value),
+    ])
+    workspace.value = mapWorkspaceDetail(detail, episodes)
+  } catch {
+    workspace.value = null
+    loadError.value = '작품 상세 정보를 불러오지 못했습니다.'
+  } finally {
+    isLoading.value = false
+  }
+}
 
 function selectTab(tab: WorkspaceDetailTab) {
   selectedTab.value = tab
@@ -33,6 +82,10 @@ function openGraph() {
 function closeGraph() {
   isGraphOpen.value = false
 }
+
+onMounted(() => {
+  void loadWorkspaceDetail()
+})
 </script>
 
 <template>
@@ -50,117 +103,139 @@ function closeGraph() {
       <h1 id="workspace-detail-title" class="workspace-detail-page__title">상세 보기</h1>
     </header>
 
-    <article class="workspace-detail-page__summary">
-      <div>
-        <p class="workspace-detail-page__meta">
-          {{ workspace.genre }} · 총 {{ workspace.episodeCount }}화
-        </p>
-        <h2 class="workspace-detail-page__work-title">{{ workspace.title }}</h2>
-        <p class="workspace-detail-page__setting-count">설정 {{ workspace.settingCount }}개</p>
-      </div>
-      <span class="workspace-detail-page__conflict-pill">충돌 {{ workspace.conflictCount }}건</span>
-    </article>
-
-    <div class="workspace-detail-page__tabs" role="tablist" aria-label="상세 보기 탭">
-      <button
-        class="workspace-detail-page__tab"
-        :class="{ 'workspace-detail-page__tab--selected': selectedTab === 'episodes' }"
-        type="button"
-        role="tab"
-        :aria-selected="selectedTab === 'episodes'"
-        @click="selectTab('episodes')"
-      >
-        회차
-      </button>
-      <button
-        class="workspace-detail-page__tab"
-        :class="{ 'workspace-detail-page__tab--selected': selectedTab === 'settings' }"
-        type="button"
-        role="tab"
-        :aria-selected="selectedTab === 'settings'"
-        @click="selectTab('settings')"
-      >
-        초기 설정
-      </button>
-    </div>
-
-    <section v-if="selectedTab === 'episodes'" class="workspace-detail-page__episodes">
-      <div class="workspace-detail-page__section-header">
-        <h2 class="workspace-detail-page__section-title">회차 리스트</h2>
-        <RouterLink
-          class="workspace-detail-page__new-episode"
-          :to="`/workspaces/${workspace.id}/episodes/new`"
-        >
-          + 새 회차
-        </RouterLink>
-      </div>
-
-      <ul class="workspace-detail-page__episode-list" aria-label="회차 리스트">
-        <li
-          v-for="episode in workspace.episodes"
-          :key="episode.id"
-          class="workspace-detail-page__episode-item"
-        >
-          <button class="episode-card" type="button">
-            <span class="episode-card__number">{{ episode.number }}화</span>
-            <span class="episode-card__title">{{ episode.title }}</span>
-            <span
-              class="episode-card__status"
-              :class="{
-                'episode-card__status--conflict': episode.conflictStatus === 'conflict',
-                'episode-card__status--clear': episode.conflictStatus === 'clear',
-              }"
-            >
-              {{ episode.conflictStatus === 'conflict' ? '충돌 발생' : '충돌 없음' }}
-            </span>
-            <span class="episode-card__chevron" aria-hidden="true">›</span>
-          </button>
-        </li>
-      </ul>
-    </section>
-
-    <section v-else class="settings-panel" aria-label="초기 설정">
-      <header class="settings-panel__header">
-        <h2 class="settings-panel__title">설정 보기</h2>
-        <div class="settings-panel__actions">
-          <button
-            class="settings-panel__action settings-panel__action--graph"
-            type="button"
-            @click="openGraph"
-          >
-            그래프 보기
-            <img class="settings-panel__action-icon" :src="graphIcon" alt="" aria-hidden="true" />
-          </button>
-          <button class="settings-panel__action settings-panel__action--edit" type="button">
-            수정 및 그래프 재생성
-            <img class="settings-panel__action-icon" :src="editIcon" alt="" aria-hidden="true" />
-          </button>
-        </div>
-      </header>
-      <div class="settings-panel__divider" aria-hidden="true"></div>
-      <pre class="settings-panel__content">{{ workspace.initialSetting }}</pre>
-    </section>
-
-    <div
-      v-if="isGraphOpen"
-      class="graph-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="graph-modal-title"
+    <p v-if="isLoading" class="workspace-detail-page__state">
+      작품 상세 정보를 불러오는 중입니다.
+    </p>
+    <p
+      v-else-if="loadError"
+      class="workspace-detail-page__state workspace-detail-page__state--error"
     >
-      <section class="graph-modal__panel">
-        <h2 id="graph-modal-title" class="graph-modal__title">Graph</h2>
+      {{ loadError }}
+    </p>
+
+    <template v-else-if="workspace">
+      <article class="workspace-detail-page__summary">
+        <div>
+          <p class="workspace-detail-page__meta">
+            {{ workspace.genre }} · 총 {{ workspace.episodeCount }}화
+          </p>
+          <h2 class="workspace-detail-page__work-title">{{ workspace.title }}</h2>
+          <p class="workspace-detail-page__setting-count">
+            {{ workspace.initialSetting ? '초기 설정 조회 가능' : '초기 설정 없음' }}
+          </p>
+        </div>
+        <span class="workspace-detail-page__conflict-pill">
+          충돌 {{ workspace.conflictCount }}건
+        </span>
+      </article>
+
+      <div class="workspace-detail-page__tabs" role="tablist" aria-label="상세 보기 탭">
         <button
-          class="graph-modal__close"
+          class="workspace-detail-page__tab"
+          :class="{ 'workspace-detail-page__tab--selected': selectedTab === 'episodes' }"
           type="button"
-          aria-label="그래프 닫기"
-          @click="closeGraph"
+          role="tab"
+          :aria-selected="selectedTab === 'episodes'"
+          @click="selectTab('episodes')"
         >
-          ×
+          회차
         </button>
-        <div class="graph-modal__canvas" aria-label="그래프 미리보기"></div>
+        <button
+          class="workspace-detail-page__tab"
+          :class="{ 'workspace-detail-page__tab--selected': selectedTab === 'settings' }"
+          type="button"
+          role="tab"
+          :aria-selected="selectedTab === 'settings'"
+          @click="selectTab('settings')"
+        >
+          초기 설정
+        </button>
+      </div>
+
+      <section v-if="selectedTab === 'episodes'" class="workspace-detail-page__episodes">
+        <div class="workspace-detail-page__section-header">
+          <h2 class="workspace-detail-page__section-title">회차 리스트</h2>
+          <RouterLink
+            class="workspace-detail-page__new-episode"
+            :to="`/workspaces/${workspace.id}/episodes/new`"
+          >
+            + 새 회차
+          </RouterLink>
+        </div>
+
+        <p v-if="workspace.episodes.length === 0" class="workspace-detail-page__empty">
+          등록된 회차가 없습니다.
+        </p>
+
+        <ul v-else class="workspace-detail-page__episode-list" aria-label="회차 리스트">
+          <li
+            v-for="episode in workspace.episodes"
+            :key="episode.id"
+            class="workspace-detail-page__episode-item"
+          >
+            <button class="episode-card" type="button">
+              <span class="episode-card__number">{{ episode.number }}화</span>
+              <span class="episode-card__title">{{ episode.title }}</span>
+              <span
+                class="episode-card__status"
+                :class="{
+                  'episode-card__status--conflict': episode.conflictStatus === 'conflict',
+                  'episode-card__status--clear': episode.conflictStatus === 'clear',
+                }"
+              >
+                {{ episode.conflictStatus === 'conflict' ? '충돌 발생' : '충돌 없음' }}
+              </span>
+              <span class="episode-card__chevron" aria-hidden="true">›</span>
+            </button>
+          </li>
+        </ul>
       </section>
-    </div>
+
+      <section v-else class="settings-panel" aria-label="초기 설정">
+        <header class="settings-panel__header">
+          <h2 class="settings-panel__title">설정 보기</h2>
+          <div class="settings-panel__actions">
+            <button
+              class="settings-panel__action settings-panel__action--graph"
+              type="button"
+              @click="openGraph"
+            >
+              그래프 보기
+              <img class="settings-panel__action-icon" :src="graphIcon" alt="" aria-hidden="true" />
+            </button>
+            <button class="settings-panel__action settings-panel__action--edit" type="button">
+              수정 및 그래프 재생성
+              <img class="settings-panel__action-icon" :src="editIcon" alt="" aria-hidden="true" />
+            </button>
+          </div>
+        </header>
+        <div class="settings-panel__divider" aria-hidden="true"></div>
+        <pre class="settings-panel__content">{{
+          workspace.initialSetting || '등록된 초기 설정이 없습니다.'
+        }}</pre>
+      </section>
+
+      <div
+        v-if="isGraphOpen"
+        class="graph-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="graph-modal-title"
+      >
+        <section class="graph-modal__panel">
+          <h2 id="graph-modal-title" class="graph-modal__title">Graph</h2>
+          <button
+            class="graph-modal__close"
+            type="button"
+            aria-label="그래프 닫기"
+            @click="closeGraph"
+          >
+            ×
+          </button>
+          <div class="graph-modal__canvas" aria-label="그래프 미리보기"></div>
+        </section>
+      </div>
+    </template>
   </section>
 </template>
 
@@ -272,6 +347,24 @@ function closeGraph() {
   letter-spacing: 0;
 }
 
+.workspace-detail-page__state {
+  margin: 18px 0 0;
+  padding: 20px 16px;
+  color: #6f7280;
+  background: #fefefe;
+  border: 1px solid #e7e7ef;
+  border-radius: 18px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.workspace-detail-page__state--error {
+  color: #ff3131;
+}
+
 .workspace-detail-page__tabs {
   display: flex;
   gap: 7px;
@@ -352,6 +445,20 @@ function closeGraph() {
   margin: 18px 0 0;
   padding: 0 5px;
   list-style: none;
+}
+
+.workspace-detail-page__empty {
+  margin: 18px 5px 0;
+  padding: 18px 14px;
+  color: #6f7280;
+  background: #fefefe;
+  border: 1px solid #e7e7ef;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-align: center;
 }
 
 .episode-card {
