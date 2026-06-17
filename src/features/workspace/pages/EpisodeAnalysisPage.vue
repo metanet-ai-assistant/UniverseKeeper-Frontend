@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import logoApp from '@/assets/images/brand/Logo2.svg'
@@ -8,35 +8,43 @@ import { useEpisodeAnalysisStore } from '@/features/workspace/stores/episodeAnal
 const route = useRoute()
 const router = useRouter()
 const analysisStore = useEpisodeAnalysisStore()
-const progress = ref(8)
 const pageError = ref('')
+const isNoConflict = ref(false)
+const isLoading = computed(() => !pageError.value && !isNoConflict.value)
 
 const workspaceId = computed(() => String(route.params.workspaceId ?? ''))
 const episodeLabel = computed(() => {
   const episodeNumber =
     analysisStore.pendingRequest?.episodeNumber || analysisStore.latestEpisodeNumber
 
+  if (isNoConflict.value) {
+    return episodeNumber ? `${episodeNumber}화 분석 완료` : '회차 분석 완료'
+  }
+
   return episodeNumber ? `${episodeNumber}화 분석 중` : '회차 분석 중'
 })
-const progressStyle = computed(() => ({
-  '--analysis-progress': `${progress.value}%`,
-}))
-
-let progressTimer: number | undefined
-
-function startProgress() {
-  progressTimer = window.setInterval(() => {
-    const limit = analysisStore.isAnalyzing ? 88 : 96
-    progress.value = Math.min(limit, progress.value + 4)
-  }, 160)
-}
-
-function stopProgress() {
-  if (progressTimer) {
-    window.clearInterval(progressTimer)
-    progressTimer = undefined
+const statusMessage = computed(() => {
+  if (pageError.value) {
+    return pageError.value
   }
-}
+
+  if (isNoConflict.value) {
+    return '충돌이 없습니다.'
+  }
+
+  return '설정과 원문을 비교하고 있습니다.'
+})
+const statusCopy = computed(() => {
+  if (pageError.value) {
+    return '회차 업로드 화면에서 다시 시도해주세요.'
+  }
+
+  if (isNoConflict.value) {
+    return '분석 결과 충돌이 발견되지 않았습니다.'
+  }
+
+  return '잠시만 기다려주세요.'
+})
 
 async function runAnalysis() {
   if (!analysisStore.hasPendingRequest) {
@@ -45,8 +53,13 @@ async function runAnalysis() {
   }
 
   try {
-    startProgress()
-    await analysisStore.runPendingAnalysis()
+    const result = await analysisStore.runPendingAnalysis()
+
+    if (!result.is_conflict) {
+      isNoConflict.value = true
+      return
+    }
+
     const episodeId = analysisStore.latestEpisodeId
 
     if (!episodeId) {
@@ -54,23 +67,16 @@ async function runAnalysis() {
       return
     }
 
-    progress.value = 100
     window.setTimeout(() => {
       void router.push(`/workspaces/${workspaceId.value}/reports/${episodeId}`)
     }, 250)
   } catch {
     pageError.value = analysisStore.analysisError || '충돌 분석에 실패했습니다.'
-  } finally {
-    stopProgress()
   }
 }
 
 onMounted(() => {
   void runAnalysis()
-})
-
-onBeforeUnmount(() => {
-  stopProgress()
 })
 </script>
 
@@ -79,26 +85,23 @@ onBeforeUnmount(() => {
     <img class="episode-analysis-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
 
     <header class="episode-analysis-page__header">
-      <RouterLink
-        class="episode-analysis-page__back"
-        :to="`/workspaces/${workspaceId}/episodes/new`"
-        aria-label="회차 업로드로 돌아가기"
-      >
-        <span class="episode-analysis-page__back-icon" aria-hidden="true"></span>
-      </RouterLink>
       <h1 id="episode-analysis-title" class="episode-analysis-page__title">{{ episodeLabel }}</h1>
     </header>
 
     <div class="episode-analysis-page__content">
-      <div class="episode-analysis-page__progress" :style="progressStyle" aria-label="분석 진행 중">
-        <span class="episode-analysis-page__progress-hole" aria-hidden="true"></span>
+      <div
+        v-if="isLoading"
+        class="episode-analysis-page__spinner"
+        role="status"
+        aria-label="분석 진행 중"
+      >
+        <span class="episode-analysis-page__spinner-hole" aria-hidden="true"></span>
       </div>
-      <p class="episode-analysis-page__status">
-        {{ pageError || '설정과 원문을 비교하고 있습니다.' }}
-      </p>
-      <p class="episode-analysis-page__copy">
-        {{ pageError ? '회차 업로드 화면에서 다시 시도해주세요.' : '잠시만 기다려주세요.' }}
-      </p>
+      <div v-else-if="isNoConflict" class="episode-analysis-page__complete" aria-hidden="true">
+        <span></span>
+      </div>
+      <p class="episode-analysis-page__status">{{ statusMessage }}</p>
+      <p class="episode-analysis-page__copy">{{ statusCopy }}</p>
       <RouterLink
         v-if="pageError"
         class="episode-analysis-page__retry"
@@ -127,27 +130,10 @@ onBeforeUnmount(() => {
 .episode-analysis-page__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   min-height: 53px;
   margin-top: 30px;
   border-bottom: 1px solid #eaf1ff;
-}
-
-.episode-analysis-page__back {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  color: #111;
-}
-
-.episode-analysis-page__back-icon {
-  width: 17px;
-  height: 17px;
-  border-bottom: 2px solid currentColor;
-  border-left: 2px solid currentColor;
-  transform: rotate(45deg);
 }
 
 .episode-analysis-page__title {
@@ -167,23 +153,40 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-.episode-analysis-page__progress {
+.episode-analysis-page__spinner {
   display: grid;
   place-items: center;
   width: 124px;
   height: 124px;
-  background: conic-gradient(
-    var(--color-brand-blue) 0 var(--analysis-progress),
-    #ecf879 var(--analysis-progress) 100%
-  );
+  background: conic-gradient(var(--color-brand-blue) 0 28%, #ecf879 28% 100%);
   border-radius: 50%;
+  animation: episode-analysis-spin 1s linear infinite;
 }
 
-.episode-analysis-page__progress-hole {
+.episode-analysis-page__spinner-hole {
   width: 88px;
   height: 88px;
   background: #fefefe;
   border-radius: 50%;
+}
+
+.episode-analysis-page__complete {
+  position: relative;
+  display: grid;
+  width: 124px;
+  height: 124px;
+  place-items: center;
+  background: #e8f7f0;
+  border: 8px solid #1f9d67;
+  border-radius: 50%;
+}
+
+.episode-analysis-page__complete span {
+  width: 45px;
+  height: 25px;
+  border-bottom: 6px solid #1f9d67;
+  border-left: 6px solid #1f9d67;
+  transform: rotate(-45deg) translate(4px, -4px);
 }
 
 .episode-analysis-page__status {
@@ -219,5 +222,11 @@ onBeforeUnmount(() => {
   line-height: 1;
   letter-spacing: 0;
   text-decoration: none;
+}
+
+@keyframes episode-analysis-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

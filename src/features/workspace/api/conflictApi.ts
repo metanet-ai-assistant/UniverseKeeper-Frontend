@@ -21,6 +21,8 @@ export interface ConflictCheckResponse {
   file_name: string
   checked_chunks: number
   is_conflict: boolean
+  conflict_report_count?: number | null
+  conflict_reports_url?: string | null
   conflicts: ConflictCheckItem[]
 }
 

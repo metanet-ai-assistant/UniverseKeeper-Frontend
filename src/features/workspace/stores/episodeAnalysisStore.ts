@@ -37,7 +37,7 @@ export const useEpisodeAnalysisStore = defineStore('episodeAnalysis', () => {
   }
 
   function resolveEpisodeId(result: ConflictCheckResponse) {
-    return result.episode_id ?? null
+    return result.is_conflict ? (result.episode_id ?? null) : null
   }
 
   async function runPendingAnalysis() {

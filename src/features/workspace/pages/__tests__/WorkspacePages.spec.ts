@@ -447,6 +447,38 @@ describe('Workspace pages', () => {
     vi.useRealTimers()
   })
 
+  it('stays on the analysis page when conflict check has no conflict', async () => {
+    const pinia = createPinia()
+    const analysisStore = useEpisodeAnalysisStore(pinia)
+    const episodeFile = new File(['abc'], 'episode-21.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+    analysisStore.queueAnalysis({
+      workId: 12,
+      episodeNumber: '21',
+      title: '고요한 복도',
+      file: episodeFile,
+    })
+    conflictApiMocks.checkUploadedFileConflict.mockResolvedValueOnce({
+      file_name: 'episode-21.docx',
+      work_id: 12,
+      checked_chunks: 2,
+      is_conflict: false,
+      conflict_report_count: 0,
+      conflicts: [],
+    })
+
+    const wrapper = mountWorkspacePage(EpisodeAnalysisPage, pinia)
+
+    await flushPromises()
+
+    expect(analysisStore.latestEpisodeId).toBeNull()
+    expect(routerMocks.push).not.toHaveBeenCalledWith('/workspaces/12/reports/21')
+    expect(wrapper.text()).toContain('21화 분석 완료')
+    expect(wrapper.text()).toContain('충돌이 없습니다.')
+    expect(wrapper.find('.episode-analysis-page__back').exists()).toBe(false)
+  })
+
   it('loads saved conflict reports from API', async () => {
     const wrapper = mountWorkspacePage(ConflictReportPage)
 

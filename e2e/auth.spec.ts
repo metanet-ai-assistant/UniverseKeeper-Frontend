@@ -54,9 +54,12 @@ type WorkspaceRouteOptions = {
   }
   conflictCheck?: {
     episode_id?: number
+    work_id?: number
     file_name: string
     checked_chunks: number
     is_conflict: boolean
+    conflict_report_count?: number
+    conflict_reports_url?: string
     conflicts: Array<{
       chunk_index: number
       chunk_text: string
@@ -228,9 +231,12 @@ async function mockAuthenticatedUser(page: Page, options: WorkspaceRouteOptions 
       body: JSON.stringify(
         options.conflictCheck ?? {
           episode_id: 201,
+          work_id: 12,
           file_name: 'episode-20.docx',
           checked_chunks: 2,
           is_conflict: true,
+          conflict_report_count: 1,
+          conflict_reports_url: '/api/v1/201/conflict_reports',
           conflicts: [
             {
               chunk_index: 0,
@@ -465,6 +471,7 @@ test('moves from episode docx upload to analysis and real conflict report', asyn
   await expect(page).toHaveURL(/\/workspaces\/12\/episodes\/analyzing$/)
   await expect(page.getByRole('heading', { name: '20화 분석 중' })).toBeVisible()
   await expect(page.getByText('설정과 원문을 비교하고 있습니다.')).toBeVisible()
+  await expect(page.getByLabel('회차 업로드로 돌아가기')).toHaveCount(0)
   await expect(page.getByText('%')).toHaveCount(0)
 
   await expect(page).toHaveURL(/\/workspaces\/12\/reports\/201$/, {
@@ -480,13 +487,13 @@ test('shows no conflict after episode analysis returns an empty result', async (
   await page.setViewportSize({ width: 402, height: 874 })
   await mockAuthenticatedUser(page, {
     conflictCheck: {
-      episode_id: 211,
       file_name: 'episode-21.docx',
+      work_id: 12,
       checked_chunks: 2,
       is_conflict: false,
+      conflict_report_count: 0,
       conflicts: [],
     },
-    conflictReports: [],
   })
   await page.goto('/workspaces/12/episodes/new')
 
@@ -499,10 +506,10 @@ test('shows no conflict after episode analysis returns an empty result', async (
   })
   await page.getByRole('button', { name: '분석 시작' }).click()
 
-  await expect(page).toHaveURL(/\/workspaces\/12\/reports\/211$/, {
+  await expect(page).toHaveURL(/\/workspaces\/12\/episodes\/analyzing$/)
+  await expect(page.getByRole('heading', { name: '21화 분석 완료' })).toBeVisible({
     timeout: 7000,
   })
-  await expect(page.getByText('21화 · 고요한 복도')).toBeVisible()
   await expect(page.getByText('충돌이 없습니다.')).toBeVisible()
   await expect(page.locator('.conflict-report-card')).toHaveCount(0)
 })
