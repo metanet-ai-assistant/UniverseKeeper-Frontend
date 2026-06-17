@@ -84,7 +84,7 @@ function mapEpisode(workId: number, episode: WorkspaceEpisodeResponse): Workspac
     number: episode.episode_no,
     title: episode.title,
     conflictStatus: isConflict ? 'conflict' : 'clear',
-    conflictReportId: isConflict ? (episode.episode_id ?? episode.episode_no) : undefined,
+    episodeId: episode.episode_id,
   }
 }
 
@@ -319,9 +319,9 @@ onMounted(() => {
             class="workspace-detail-page__episode-item"
           >
             <RouterLink
-              v-if="episode.conflictStatus === 'conflict'"
+              v-if="episode.conflictStatus === 'conflict' && episode.episodeId"
               class="episode-card"
-              :to="`/workspaces/${workspace.id}/reports/${episode.conflictReportId ?? episode.number}`"
+              :to="`/workspaces/${workspace.id}/reports/${episode.episodeId}`"
             >
               <span class="episode-card__number">{{ episode.number }}화</span>
               <span class="episode-card__title">{{ episode.title }}</span>

@@ -55,7 +55,7 @@ const routerMocks = vi.hoisted(() => ({
   push: vi.fn<(path: string) => Promise<void> | void>(),
   routeParams: {
     workspaceId: '12',
-    reportId: '19',
+    episodeId: '19',
   },
 }))
 
@@ -82,7 +82,7 @@ beforeEach(() => {
   vi.useRealTimers()
   routerMocks.push.mockReset()
   routerMocks.routeParams.workspaceId = '12'
-  routerMocks.routeParams.reportId = '19'
+  routerMocks.routeParams.episodeId = '19'
 
   workspaceApiMocks.getKpiSummary.mockReset()
   workspaceApiMocks.getWorkspaces.mockReset()
@@ -350,6 +350,23 @@ describe('Workspace pages', () => {
 
     expect(wrapper.text()).toContain('등록된 회차가 없습니다.')
     expect(wrapper.find('.workspace-detail-page__episode-list').exists()).toBe(false)
+  })
+
+  it('does not build a conflict report link from episode number', async () => {
+    workspaceDetailApiMocks.getWorkspaceEpisodes.mockResolvedValueOnce([
+      {
+        episode_no: 19,
+        title: '침묵하는 왕관',
+        is_conflict: true,
+      },
+    ])
+
+    const wrapper = mountWorkspacePage(WorkspaceDetailPage)
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('침묵하는 왕관')
+    expect(wrapper.find('a[href="/workspaces/12/reports/19"]').exists()).toBe(false)
   })
 
   it('queues a docx file before moving to episode analysis', async () => {

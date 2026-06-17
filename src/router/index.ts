@@ -79,7 +79,7 @@ const router = createRouter({
       },
     },
     {
-      path: '/workspaces/:workspaceId/reports/:reportId',
+      path: '/workspaces/:workspaceId/reports/:episodeId',
       name: 'conflict-report',
       component: () => import('@/features/workspace/pages/ConflictReportPage.vue'),
       meta: {

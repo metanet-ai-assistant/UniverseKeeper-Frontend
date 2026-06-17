@@ -25,7 +25,7 @@ export interface WorkspaceEpisode {
   number: number
   title: string
   conflictStatus: EpisodeConflictStatus
-  conflictReportId?: number
+  episodeId?: number
 }
 
 export interface WorkspaceDetail {

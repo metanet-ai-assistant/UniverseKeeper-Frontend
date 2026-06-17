@@ -27,16 +27,9 @@ const loadError = ref('')
 const reportItems = ref<ConflictReportItem[]>([])
 
 const workspaceId = computed(() => getRouteParam(route.params.workspaceId))
-const reportId = computed(() => getRouteParam(route.params.reportId))
-const reportEpisodeId = computed(() => {
-  if (reportId.value === 'latest') {
-    return analysisStore.latestEpisodeId
-  }
-
-  return reportId.value
-})
+const episodeId = computed(() => getRouteParam(route.params.episodeId))
 const summaryMeta = computed(() => {
-  if (analysisStore.latestEpisodeId && String(analysisStore.latestEpisodeId) === String(reportEpisodeId.value)) {
+  if (analysisStore.latestEpisodeId && String(analysisStore.latestEpisodeId) === String(episodeId.value)) {
     const episodeLabel = analysisStore.latestEpisodeNumber
       ? `${analysisStore.latestEpisodeNumber}화`
       : '최근 분석'
@@ -45,7 +38,7 @@ const summaryMeta = computed(() => {
     return `${episodeLabel} · ${titleLabel}`
   }
 
-  return `회차 ID ${reportEpisodeId.value}`
+  return `회차 ID ${episodeId.value}`
 })
 const summaryTitle = computed(() => {
   if (isLoading.value) {
@@ -115,9 +108,8 @@ function mapSavedConflict(item: ConflictReportResponse, index: number): Conflict
 async function loadReport() {
   loadError.value = ''
   reportItems.value = []
-  const episodeId = reportEpisodeId.value
 
-  if (!episodeId) {
+  if (!episodeId.value) {
     loadError.value = '충돌 리포트 정보를 확인할 수 없습니다.'
     return
   }
@@ -125,7 +117,7 @@ async function loadReport() {
   isLoading.value = true
 
   try {
-    const reports = await getConflictReports(episodeId)
+    const reports = await getConflictReports(episodeId.value)
     reportItems.value = reports.map((item, index) => mapSavedConflict(item, index))
   } catch {
     loadError.value = '충돌 리포트를 불러오지 못했습니다.'
