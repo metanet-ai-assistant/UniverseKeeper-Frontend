@@ -101,3 +101,56 @@ test('moves from workspace list to a single new workspace page', async ({ page }
   await expect(page.getByPlaceholder('작품 설정을 입력해주세요.')).toBeVisible()
   await expect(page.getByRole('button', { name: '작품 생성' })).toBeVisible()
 })
+
+test('moves from workspace list to workspace detail states', async ({ page }) => {
+  await page.setViewportSize({ width: 402, height: 874 })
+  await mockAuthenticatedUser(page)
+  await page.goto('/workspaces')
+
+  await page.getByRole('link', { name: /붉은 달의 기억/ }).click()
+
+  await expect(page).toHaveURL(/\/workspaces\/red-moon$/)
+  await expect(page.getByRole('heading', { name: '상세 보기' })).toBeVisible()
+  await expect(page.getByText('침묵하는 왕관')).toBeVisible()
+  await expect(page.getByText('충돌 발생')).toBeVisible()
+
+  await page.getByRole('tab', { name: '초기 설정' }).click()
+
+  await expect(page.getByText('설정 보기')).toBeVisible()
+  await expect(page.getByText('# 초기 설정 - 붉은 달의 기억')).toBeVisible()
+
+  await page.getByRole('button', { name: /그래프 보기/ }).click()
+
+  await expect(page.getByRole('dialog', { name: 'Graph' })).toBeVisible()
+
+  await page.getByRole('button', { name: '그래프 닫기' }).click()
+  await expect(page.getByRole('dialog', { name: 'Graph' })).toBeHidden()
+})
+
+test('moves from episode upload to analysis and dummy conflict report', async ({ page }) => {
+  await page.setViewportSize({ width: 402, height: 874 })
+  await mockAuthenticatedUser(page)
+  await page.goto('/workspaces/red-moon/episodes/new')
+
+  await expect(page.getByRole('heading', { name: '회차 업로드' })).toBeVisible()
+  await expect(page.getByText('원고를 업로드하거나 붙여넣으세요')).toBeVisible()
+
+  await page.getByRole('radio', { name: /직접 입력/ }).click()
+  await expect(page.getByPlaceholder('작품 설정을 입력해주세요.')).toBeVisible()
+
+  await page.getByRole('radio', { name: /원고 업로드/ }).click()
+  await expect(page.getByText('TXT · MD 파일, 최대 10MB')).toBeVisible()
+
+  await page.getByRole('link', { name: '분석 시작' }).click()
+
+  await expect(page).toHaveURL(/\/workspaces\/red-moon\/episodes\/analyzing$/)
+  await expect(page.getByRole('heading', { name: '19화 분석 중' })).toBeVisible()
+  await expect(page.getByText('설정과 원문을 비교하고 있습니다.')).toBeVisible()
+  await expect(page.getByText('%')).toHaveCount(0)
+
+  await expect(page).toHaveURL(/\/workspaces\/red-moon\/reports\/mock-episode-19$/, {
+    timeout: 7000,
+  })
+  await expect(page.getByRole('heading', { name: '충돌 리포트' })).toBeVisible()
+  await expect(page.getByText('유진의 기억 회귀 제한')).toBeVisible()
+})
