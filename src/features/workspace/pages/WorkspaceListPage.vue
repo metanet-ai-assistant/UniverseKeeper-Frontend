@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import logoApp from '@/assets/images/brand/Logo2.svg'
@@ -7,13 +7,32 @@ import addIcon from '@/assets/images/icons/Add.png'
 import checkmarkIcon from '@/assets/images/icons/Checkmark.png'
 import errorIcon from '@/assets/images/icons/Error.png'
 import { useAuthStore } from '@/features/auth/stores/authStore'
-import { mockWorkspaces, mockWorkspaceStats } from '@/features/workspace/mocks/workspaces'
+import {
+  getKpiSummary,
+  getWorkspaces,
+  type KpiSummaryResponse,
+  type WorkspaceListItemResponse,
+} from '@/features/workspace/api/workspaceApi'
+import { mockWorkspaceStats } from '@/features/workspace/mocks/workspaces'
+import type { WorkspaceDashboardStats, WorkspaceSummary } from '@/features/workspace/types'
 
 const authStore = useAuthStore()
 const router = useRouter()
 const isLoggingOut = ref(false)
+const isLoading = ref(true)
+const loadError = ref('')
+const dashboardStats = ref<WorkspaceDashboardStats>({
+  ...mockWorkspaceStats,
+  totalWorks: 0,
+  totalRequests: 0,
+  mergeConflicts: 0,
+})
+const workspaces = ref<WorkspaceSummary[]>([])
 
 const ownerName = computed(() => authStore.user?.user_name || mockWorkspaceStats.userName)
+const greetingCopy = computed(
+  () => `현재 ${dashboardStats.value.totalWorks}개 작품을 관리 중입니다.`,
+)
 const memberInfo = computed(() => {
   if (!authStore.user) {
     return ''
@@ -30,6 +49,54 @@ function progressPercent(approvedCount: number, totalCount: number) {
   return Math.min(100, Math.round((approvedCount / totalCount) * 100))
 }
 
+function mapDashboardStats(kpiSummary: KpiSummaryResponse): WorkspaceDashboardStats {
+  return {
+    userName: mockWorkspaceStats.userName,
+    totalWorks: kpiSummary.total_works,
+    totalRequests: kpiSummary.total_requests,
+    mergeConflicts: kpiSummary.conflicted_episodes,
+  }
+}
+
+function mapWorkspaceSummary(workspace: WorkspaceListItemResponse): WorkspaceSummary {
+  const uncheckedIssueCount = Math.max(0, workspace.latest_version_conflict_count)
+
+  return {
+    id: String(workspace.work_id),
+    title: workspace.title,
+    genre: workspace.genre,
+    episodeCount: workspace.episode_count,
+    reviewStatus: uncheckedIssueCount > 0 ? 'unchecked' : 'complete',
+    uncheckedIssueCount,
+  }
+}
+
+function conflictFreeEpisodeCount(workspace: WorkspaceSummary) {
+  return Math.max(0, workspace.episodeCount - workspace.uncheckedIssueCount)
+}
+
+async function loadWorkspaceDashboard() {
+  isLoading.value = true
+  loadError.value = ''
+
+  try {
+    const [kpiSummary, workspaceList] = await Promise.all([getKpiSummary(), getWorkspaces()])
+    dashboardStats.value = mapDashboardStats(kpiSummary)
+    workspaces.value = workspaceList.map(mapWorkspaceSummary)
+  } catch {
+    loadError.value = '작품 목록을 불러오지 못했습니다.'
+    dashboardStats.value = {
+      ...mockWorkspaceStats,
+      totalWorks: 0,
+      totalRequests: 0,
+      mergeConflicts: 0,
+    }
+    workspaces.value = []
+  } finally {
+    isLoading.value = false
+  }
+}
+
 async function handleLogout() {
   if (isLoggingOut.value) {
     return
@@ -44,6 +111,10 @@ async function handleLogout() {
     isLoggingOut.value = false
   }
 }
+
+onMounted(() => {
+  void loadWorkspaceDashboard()
+})
 </script>
 
 <template>
@@ -55,7 +126,7 @@ async function handleLogout() {
         <h1 id="workspace-list-title" class="workspace-list-page__greeting-title">
           안녕하세요, {{ ownerName }} 작가님
         </h1>
-        <p class="workspace-list-page__greeting-copy">현재 2개 작품을 관리 중입니다.</p>
+        <p class="workspace-list-page__greeting-copy">{{ greetingCopy }}</p>
         <p v-if="memberInfo" class="workspace-list-page__member">{{ memberInfo }}</p>
       </div>
       <button
@@ -70,15 +141,15 @@ async function handleLogout() {
 
     <dl class="workspace-list-page__stats" aria-label="작품 통계">
       <div class="workspace-list-page__stat-card">
-        <dt>{{ mockWorkspaceStats.totalWorks }}</dt>
+        <dt>{{ dashboardStats.totalWorks }}</dt>
         <dd>전체 작품</dd>
       </div>
       <div class="workspace-list-page__stat-card">
-        <dt>{{ mockWorkspaceStats.totalRequests }}</dt>
+        <dt>{{ dashboardStats.totalRequests }}</dt>
         <dd>총 요청 수</dd>
       </div>
       <div class="workspace-list-page__stat-card">
-        <dt>{{ mockWorkspaceStats.mergeConflicts }}</dt>
+        <dt>{{ dashboardStats.mergeConflicts }}</dt>
         <dd>미검토 충돌</dd>
       </div>
     </dl>
@@ -93,8 +164,16 @@ async function handleLogout() {
       </RouterLink>
     </div>
 
-    <ul class="workspace-list-page__list" aria-label="워크스페이스 목록">
-      <li v-for="workspace in mockWorkspaces" :key="workspace.id" class="workspace-list-page__item">
+    <p v-if="isLoading" class="workspace-list-page__state">작품 목록을 불러오는 중입니다.</p>
+    <p v-else-if="loadError" class="workspace-list-page__state workspace-list-page__state--error">
+      {{ loadError }}
+    </p>
+    <p v-else-if="workspaces.length === 0" class="workspace-list-page__state">
+      아직 등록된 작품이 없습니다.
+    </p>
+
+    <ul v-else class="workspace-list-page__list" aria-label="워크스페이스 목록">
+      <li v-for="workspace in workspaces" :key="workspace.id" class="workspace-list-page__item">
         <RouterLink class="workspace-card" :to="`/workspaces/${workspace.id}`">
           <div class="workspace-card__topline">
             <h3 class="workspace-card__title">{{ workspace.title }}</h3>
@@ -127,13 +206,13 @@ async function handleLogout() {
             <span
               class="workspace-card__progress-value"
               :style="{
-                width: `${progressPercent(workspace.approvedSettingCount, workspace.totalSettingCount)}%`,
+                width: `${progressPercent(conflictFreeEpisodeCount(workspace), workspace.episodeCount)}%`,
               }"
             ></span>
           </div>
 
           <p class="workspace-card__approval">
-            설정 승인 {{ workspace.approvedSettingCount }}/{{ workspace.totalSettingCount }}
+            총 회차 수 {{ workspace.episodeCount }}회
           </p>
         </RouterLink>
       </li>
@@ -279,6 +358,24 @@ async function handleLogout() {
   width: 21px;
   height: 21px;
   object-fit: contain;
+}
+
+.workspace-list-page__state {
+  margin: 16px 0 0;
+  padding: 18px 14px;
+  color: #6f7280;
+  background: #fefefe;
+  border: 1px solid #e7e7ef;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.workspace-list-page__state--error {
+  color: #ff3131;
 }
 
 .workspace-list-page__list {

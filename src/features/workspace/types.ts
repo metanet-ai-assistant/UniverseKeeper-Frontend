@@ -16,8 +16,6 @@ export interface WorkspaceSummary {
   title: string
   genre: string
   episodeCount: number
-  approvedSettingCount: number
-  totalSettingCount: number
   reviewStatus: WorkspaceReviewStatus
   uncheckedIssueCount: number
 }
