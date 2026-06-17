@@ -58,6 +58,9 @@ export async function checkUploadedFileConflict(
   }
 
   const response = await apiClient.post<ConflictCheckResponse>('/api/v1/conflict/check', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
     timeout: 0,
   })
   return response.data
