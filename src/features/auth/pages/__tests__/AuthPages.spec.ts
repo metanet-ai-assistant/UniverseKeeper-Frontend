@@ -103,6 +103,7 @@ describe('Auth pages', () => {
     expect(wrapper.get('h1').text()).toBe('로그인')
     expect(wrapper.text()).toContain('비밀번호 찾기')
     expect(wrapper.text()).toContain('회원가입')
+    expect(wrapper.find('a[href="/splash"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/join"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/findpw"]').exists()).toBe(true)
   })

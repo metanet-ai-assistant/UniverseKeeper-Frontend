@@ -234,7 +234,13 @@ onMounted(() => {
 
 <template>
   <section class="workspace-detail-page" aria-labelledby="workspace-detail-title">
-    <img class="workspace-detail-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
+    <RouterLink
+      class="workspace-detail-page__logo-link"
+      to="/workspaces"
+      aria-label="워크스페이스로 이동"
+    >
+      <img class="workspace-detail-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
+    </RouterLink>
 
     <header class="workspace-detail-page__header">
       <RouterLink
@@ -459,6 +465,12 @@ onMounted(() => {
   width: 106px;
   height: 50px;
   object-fit: contain;
+}
+
+.workspace-detail-page__logo-link {
+  display: inline-flex;
+  width: 106px;
+  height: 50px;
 }
 
 .workspace-detail-page__header {

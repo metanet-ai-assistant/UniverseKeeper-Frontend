@@ -241,6 +241,7 @@ describe('Workspace pages', () => {
     expect(wrapper.text()).toContain('별이 꺼진 후의 기록작')
     expect(wrapper.text()).toContain('미검토 2건')
     expect(wrapper.text()).toContain('총 회차 수 19회')
+    expect(wrapper.find('.workspace-list-page__logo-link[href="/workspaces"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/workspaces/new"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/workspaces/12"]').exists()).toBe(true)
   })
@@ -271,6 +272,7 @@ describe('Workspace pages', () => {
     expect(wrapper.get('h1').text()).toBe('새 작품 만들기')
     expect(submitButton.text()).toBe('작품 생성')
     expect(submitButton.element.disabled).toBe(false)
+    expect(wrapper.find('.new-workspace-page__logo-link[href="/workspaces"]').exists()).toBe(true)
     expect(wrapper.find('textarea[name="workspace-settings"]').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('원고를 업로드하거나 붙여넣으세요')
 
@@ -317,6 +319,9 @@ describe('Workspace pages', () => {
     expect(wrapper.text()).toContain('붉은 달의 기억')
     expect(wrapper.text()).toContain('침묵하는 왕관')
     expect(wrapper.text()).not.toContain('# 초기 설정 - 붉은 달의 기억')
+    expect(wrapper.find('.workspace-detail-page__logo-link[href="/workspaces"]').exists()).toBe(
+      true,
+    )
     expect(wrapper.find('a[href="/workspaces/12/episodes/new"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/workspaces/12/reports/191"]').exists()).toBe(true)
     expect(wrapper.find('.episode-card__chevron').exists()).toBe(false)
@@ -375,6 +380,9 @@ describe('Workspace pages', () => {
     const analysisStore = useEpisodeAnalysisStore(pinia)
 
     expect(wrapper.get('h1').text()).toBe('회차 업로드')
+    expect(wrapper.find('.episode-upload-page__logo-link[href="/workspaces/12"]').exists()).toBe(
+      true,
+    )
     expect(wrapper.get<HTMLInputElement>('input[name="episode-number"]').element.value).toBe('')
     expect(wrapper.get('input[name="episode-number"]').attributes('placeholder')).toBe('회차')
     expect(wrapper.get<HTMLInputElement>('input[name="episode-title"]').element.value).toBe('')

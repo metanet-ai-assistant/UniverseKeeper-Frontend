@@ -151,7 +151,9 @@ async function handleCreate() {
 
 <template>
   <section class="new-workspace-page" :class="pageClass" aria-labelledby="new-workspace-title">
-    <img class="new-workspace-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
+    <RouterLink class="new-workspace-page__logo-link" to="/workspaces" aria-label="워크스페이스로 이동">
+      <img class="new-workspace-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
+    </RouterLink>
 
     <header class="new-workspace-page__header">
       <RouterLink
@@ -277,6 +279,12 @@ async function handleCreate() {
   width: 106px;
   height: 50px;
   object-fit: contain;
+}
+
+.new-workspace-page__logo-link {
+  display: inline-flex;
+  width: 106px;
+  height: 50px;
 }
 
 .new-workspace-page__header {

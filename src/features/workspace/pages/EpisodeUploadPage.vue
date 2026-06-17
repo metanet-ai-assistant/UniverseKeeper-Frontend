@@ -156,7 +156,13 @@ async function handleSubmit() {
 
 <template>
   <section class="episode-upload-page" aria-labelledby="episode-upload-title">
-    <img class="episode-upload-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
+    <RouterLink
+      class="episode-upload-page__logo-link"
+      :to="`/workspaces/${workspaceId}`"
+      aria-label="워크스페이스로 이동"
+    >
+      <img class="episode-upload-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
+    </RouterLink>
 
     <header class="episode-upload-page__header">
       <RouterLink
@@ -272,6 +278,12 @@ async function handleSubmit() {
   width: 106px;
   height: 50px;
   object-fit: contain;
+}
+
+.episode-upload-page__logo-link {
+  display: inline-flex;
+  width: 106px;
+  height: 50px;
 }
 
 .episode-upload-page__header {
