@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import logoApp from '@/assets/images/brand/Logo2.svg'
-import editIcon from '@/assets/images/icons/edit.png'
 import graphIcon from '@/assets/images/icons/graph.png'
 import {
   getEntities,
@@ -347,10 +346,6 @@ onMounted(() => {
             >
               그래프 보기
               <img class="settings-panel__action-icon" :src="graphIcon" alt="" aria-hidden="true" />
-            </button>
-            <button class="settings-panel__action settings-panel__action--edit" type="button">
-              수정 및 그래프 재생성
-              <img class="settings-panel__action-icon" :src="editIcon" alt="" aria-hidden="true" />
             </button>
           </div>
         </header>
@@ -790,10 +785,6 @@ onMounted(() => {
 
 .settings-panel__action--graph {
   color: #65e645;
-}
-
-.settings-panel__action--edit {
-  color: var(--color-brand-blue);
 }
 
 .settings-panel__action-icon {
