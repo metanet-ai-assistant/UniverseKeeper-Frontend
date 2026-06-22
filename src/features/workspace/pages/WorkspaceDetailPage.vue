@@ -3,8 +3,16 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import logoApp from '@/assets/images/brand/Logo2.svg'
-import editIcon from '@/assets/images/icons/edit.png'
 import graphIcon from '@/assets/images/icons/graph.png'
+import {
+  getEntities,
+  getEntityDetails,
+  getEntitySubgraph,
+  type EntityDetailResponse,
+  type EntitySubgraphResponse,
+  type GraphEdge,
+  type GraphNode,
+} from '@/features/workspace/api/graphApi'
 import {
   getWorkspaceDetail,
   getWorkspaceEpisodes,
@@ -13,21 +21,69 @@ import {
 } from '@/features/workspace/api/workspaceDetailApi'
 import type { WorkspaceDetail, WorkspaceDetailTab, WorkspaceEpisode } from '@/features/workspace/types'
 
+interface PositionedGraphNode extends GraphNode {
+  x: number
+  y: number
+}
+
+interface PositionedGraphEdge extends GraphEdge {
+  sourceNode: PositionedGraphNode
+  targetNode: PositionedGraphNode
+}
+
 const route = useRoute()
 const selectedTab = ref<WorkspaceDetailTab>('episodes')
 const isGraphOpen = ref(false)
 const isLoading = ref(true)
 const loadError = ref('')
 const workspace = ref<WorkspaceDetail | null>(null)
+const graphEntities = ref<string[]>([])
+const selectedEntity = ref('')
+const entityDetail = ref<EntityDetailResponse | null>(null)
+const entitySubgraph = ref<EntitySubgraphResponse>({ nodes: [], edges: [] })
+const selectedNodeId = ref('')
+const graphZoom = ref(1)
+const isGraphLoading = ref(false)
+const graphError = ref('')
 
 const workId = computed(() => Number(route.params.workspaceId))
+const positionedGraphNodes = computed<PositionedGraphNode[]>(() =>
+  entitySubgraph.value.nodes.map((node, index) => ({
+    ...node,
+    ...graphNodePosition(index, entitySubgraph.value.nodes.length),
+  })),
+)
+const positionedGraphEdges = computed<PositionedGraphEdge[]>(() => {
+  const nodeMap = new Map(positionedGraphNodes.value.map((node) => [node.id, node]))
+
+  return entitySubgraph.value.edges.reduce<PositionedGraphEdge[]>((edges, edge) => {
+    const sourceNode = nodeMap.get(edge.source)
+    const targetNode = nodeMap.get(edge.target)
+
+    if (sourceNode && targetNode) {
+      edges.push({
+        ...edge,
+        sourceNode,
+        targetNode,
+      })
+    }
+
+    return edges
+  }, [])
+})
+const selectedNode = computed(() =>
+  positionedGraphNodes.value.find((node) => node.id === selectedNodeId.value),
+)
 
 function mapEpisode(workId: number, episode: WorkspaceEpisodeResponse): WorkspaceEpisode {
+  const isConflict = episode.is_conflict
+
   return {
     id: `${workId}-${episode.episode_no}`,
     number: episode.episode_no,
     title: episode.title,
-    conflictStatus: episode.is_conflict ? 'conflict' : 'clear',
+    conflictStatus: isConflict ? 'conflict' : 'clear',
+    episodeId: episode.episode_id,
   }
 }
 
@@ -77,10 +133,98 @@ function selectTab(tab: WorkspaceDetailTab) {
 
 function openGraph() {
   isGraphOpen.value = true
+  void loadGraphEntities()
 }
 
 function closeGraph() {
   isGraphOpen.value = false
+}
+
+function isValidWorkId() {
+  return Number.isInteger(workId.value) && workId.value > 0
+}
+
+function resetSelectedGraph() {
+  selectedNodeId.value = ''
+  entityDetail.value = null
+  entitySubgraph.value = { nodes: [], edges: [] }
+}
+
+async function fetchSelectedEntityGraph() {
+  if (!selectedEntity.value || !isValidWorkId()) {
+    resetSelectedGraph()
+    return
+  }
+
+  selectedNodeId.value = ''
+  const [detail, subgraph] = await Promise.all([
+    getEntityDetails(selectedEntity.value, workId.value),
+    getEntitySubgraph(selectedEntity.value, workId.value),
+  ])
+  entityDetail.value = detail
+  entitySubgraph.value = subgraph
+}
+
+async function loadGraphEntities() {
+  graphError.value = ''
+  resetSelectedGraph()
+
+  if (!isValidWorkId()) {
+    graphEntities.value = []
+    selectedEntity.value = ''
+    graphError.value = '그래프 조회는 숫자 작품 ID에서 사용할 수 있습니다.'
+    return
+  }
+
+  isGraphLoading.value = true
+
+  try {
+    graphEntities.value = await getEntities(workId.value)
+    selectedEntity.value = graphEntities.value[0] ?? ''
+
+    if (selectedEntity.value) {
+      await fetchSelectedEntityGraph()
+    }
+  } catch {
+    graphError.value = '그래프 정보를 불러오지 못했습니다.'
+  } finally {
+    isGraphLoading.value = false
+  }
+}
+
+async function loadSelectedEntityGraph() {
+  graphError.value = ''
+  isGraphLoading.value = true
+
+  try {
+    await fetchSelectedEntityGraph()
+  } catch {
+    graphError.value = '선택한 엔티티 그래프를 불러오지 못했습니다.'
+  } finally {
+    isGraphLoading.value = false
+  }
+}
+
+function graphNodePosition(index: number, total: number) {
+  const radius = total <= 1 ? 0 : 190
+  const angle = (index / Math.max(total, 1)) * Math.PI * 2 - Math.PI / 2
+
+  return {
+    x: 300 + Math.cos(angle) * radius,
+    y: 280 + Math.sin(angle) * radius,
+  }
+}
+
+function selectGraphNode(nodeId: string) {
+  selectedNodeId.value = nodeId
+}
+
+function zoomGraph(delta: number) {
+  graphZoom.value = Math.min(1.8, Math.max(0.6, Number((graphZoom.value + delta).toFixed(1))))
+}
+
+function formatNodeLabel(label: string) {
+  return label.length > 8 ? `${label.slice(0, 8)}...` : label
 }
 
 onMounted(() => {
@@ -90,7 +234,13 @@ onMounted(() => {
 
 <template>
   <section class="workspace-detail-page" aria-labelledby="workspace-detail-title">
-    <img class="workspace-detail-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
+    <RouterLink
+      class="workspace-detail-page__logo-link"
+      to="/workspaces"
+      aria-label="워크스페이스로 이동"
+    >
+      <img class="workspace-detail-page__logo" :src="logoApp" alt="UniverseKeeper UVK" />
+    </RouterLink>
 
     <header class="workspace-detail-page__header">
       <RouterLink
@@ -173,20 +323,20 @@ onMounted(() => {
             :key="episode.id"
             class="workspace-detail-page__episode-item"
           >
-            <button class="episode-card" type="button">
+            <RouterLink
+              v-if="episode.conflictStatus === 'conflict' && episode.episodeId"
+              class="episode-card"
+              :to="`/workspaces/${workspace.id}/reports/${episode.episodeId}`"
+            >
               <span class="episode-card__number">{{ episode.number }}화</span>
               <span class="episode-card__title">{{ episode.title }}</span>
-              <span
-                class="episode-card__status"
-                :class="{
-                  'episode-card__status--conflict': episode.conflictStatus === 'conflict',
-                  'episode-card__status--clear': episode.conflictStatus === 'clear',
-                }"
-              >
-                {{ episode.conflictStatus === 'conflict' ? '충돌 발생' : '충돌 없음' }}
-              </span>
-              <span class="episode-card__chevron" aria-hidden="true">›</span>
-            </button>
+              <span class="episode-card__status episode-card__status--conflict">충돌 발생</span>
+            </RouterLink>
+            <div v-else class="episode-card episode-card--static">
+              <span class="episode-card__number">{{ episode.number }}화</span>
+              <span class="episode-card__title">{{ episode.title }}</span>
+              <span class="episode-card__status episode-card__status--clear">충돌 없음</span>
+            </div>
           </li>
         </ul>
       </section>
@@ -202,10 +352,6 @@ onMounted(() => {
             >
               그래프 보기
               <img class="settings-panel__action-icon" :src="graphIcon" alt="" aria-hidden="true" />
-            </button>
-            <button class="settings-panel__action settings-panel__action--edit" type="button">
-              수정 및 그래프 재생성
-              <img class="settings-panel__action-icon" :src="editIcon" alt="" aria-hidden="true" />
             </button>
           </div>
         </header>
@@ -232,7 +378,74 @@ onMounted(() => {
           >
             ×
           </button>
-          <div class="graph-modal__canvas" aria-label="그래프 미리보기"></div>
+          <div class="graph-modal__toolbar">
+            <select
+              v-model="selectedEntity"
+              class="graph-modal__select"
+              :disabled="isGraphLoading || graphEntities.length === 0"
+              aria-label="엔티티 선택"
+              @change="loadSelectedEntityGraph"
+            >
+              <option v-for="entity in graphEntities" :key="entity" :value="entity">
+                {{ entity }}
+              </option>
+            </select>
+            <div class="graph-modal__zoom" aria-label="그래프 확대 축소">
+              <button type="button" aria-label="축소" @click="zoomGraph(-0.1)">-</button>
+              <span>{{ Math.round(graphZoom * 100) }}%</span>
+              <button type="button" aria-label="확대" @click="zoomGraph(0.1)">+</button>
+            </div>
+          </div>
+
+          <p v-if="isGraphLoading" class="graph-modal__state">그래프를 불러오는 중입니다.</p>
+          <p v-else-if="graphError" class="graph-modal__state graph-modal__state--error">
+            {{ graphError }}
+          </p>
+          <p v-else-if="graphEntities.length === 0" class="graph-modal__state">
+            표시할 엔티티가 없습니다.
+          </p>
+          <p v-else-if="positionedGraphNodes.length === 0" class="graph-modal__state">
+            표시할 그래프 노드가 없습니다.
+          </p>
+
+          <div v-else class="graph-modal__canvas" aria-label="그래프 미리보기">
+            <svg class="graph-modal__svg" viewBox="0 0 600 560" role="img" aria-label="엔티티 관계 그래프">
+              <g :transform="`translate(300 280) scale(${graphZoom}) translate(-300 -280)`">
+                <line
+                  v-for="edge in positionedGraphEdges"
+                  :key="`${edge.source}-${edge.target}-${edge.label}`"
+                  class="graph-modal__edge"
+                  :x1="edge.sourceNode.x"
+                  :y1="edge.sourceNode.y"
+                  :x2="edge.targetNode.x"
+                  :y2="edge.targetNode.y"
+                />
+                <g
+                  v-for="node in positionedGraphNodes"
+                  :key="node.id"
+                  class="graph-modal__node"
+                  :class="{ 'graph-modal__node--selected': selectedNodeId === node.id }"
+                  :transform="`translate(${node.x} ${node.y})`"
+                  role="button"
+                  tabindex="0"
+                  @click="selectGraphNode(node.id)"
+                  @keyup.enter="selectGraphNode(node.id)"
+                >
+                  <circle r="34"></circle>
+                  <text text-anchor="middle" dy="4">{{ formatNodeLabel(node.label) }}</text>
+                </g>
+              </g>
+            </svg>
+          </div>
+
+          <aside v-if="selectedNode" class="graph-modal__node-detail">
+            <h3>{{ selectedNode.label }}</h3>
+            <p>ID: {{ selectedNode.id }}</p>
+          </aside>
+          <aside v-else-if="entityDetail" class="graph-modal__node-detail">
+            <h3>{{ entityDetail.entity.name }}</h3>
+            <p>{{ entityDetail.entity.description || '엔티티 설명이 없습니다.' }}</p>
+          </aside>
         </section>
       </div>
     </template>
@@ -252,6 +465,12 @@ onMounted(() => {
   width: 106px;
   height: 50px;
   object-fit: contain;
+}
+
+.workspace-detail-page__logo-link {
+  display: inline-flex;
+  width: 106px;
+  height: 50px;
 }
 
 .workspace-detail-page__header {
@@ -476,6 +695,11 @@ onMounted(() => {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.25);
   cursor: pointer;
   text-align: left;
+  text-decoration: none;
+}
+
+.episode-card--static {
+  cursor: default;
 }
 
 .episode-card__number {
@@ -520,16 +744,6 @@ onMounted(() => {
 .episode-card__status--clear {
   color: #1f9d67;
   background: #e8f7f0;
-}
-
-.episode-card__chevron {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  color: #6f7280;
-  font-size: 25px;
-  font-weight: 500;
-  line-height: 1;
 }
 
 .settings-panel {
@@ -583,10 +797,6 @@ onMounted(() => {
 
 .settings-panel__action--graph {
   color: #65e645;
-}
-
-.settings-panel__action--edit {
-  color: var(--color-brand-blue);
 }
 
 .settings-panel__action-icon {
@@ -681,10 +891,129 @@ onMounted(() => {
 }
 
 .graph-modal__canvas {
-  height: 628px;
-  margin-top: 24px;
+  height: 456px;
+  margin-top: 14px;
+  overflow: hidden;
   background: #2d2d2d;
   border-radius: 8px;
+}
+
+.graph-modal__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.graph-modal__select {
+  min-width: 0;
+  height: 36px;
+  flex: 1;
+  padding: 0 10px;
+  color: #2d2d2d;
+  background: #fefefe;
+  border: 1px solid #e7e7ef;
+  border-radius: 8px;
+  font-family: var(--font-family-base);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.graph-modal__zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #2d2d2d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.graph-modal__zoom button {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: #fefefe;
+  background: var(--color-brand-blue);
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.graph-modal__state {
+  display: grid;
+  min-height: 456px;
+  margin: 14px 0 0;
+  place-items: center;
+  color: #6f7280;
+  background: #f3f9ff;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.graph-modal__state--error {
+  color: #ff3131;
+}
+
+.graph-modal__svg {
+  width: 100%;
+  height: 100%;
+}
+
+.graph-modal__edge {
+  stroke: #9ca3af;
+  stroke-width: 2;
+}
+
+.graph-modal__node {
+  cursor: pointer;
+}
+
+.graph-modal__node circle {
+  fill: #ddedff;
+  stroke: var(--color-brand-blue);
+  stroke-width: 3;
+}
+
+.graph-modal__node--selected circle {
+  fill: #fbffb9;
+  stroke: var(--color-brand-lime);
+}
+
+.graph-modal__node text {
+  fill: #2d2d2d;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+
+.graph-modal__node-detail {
+  min-height: 72px;
+  margin-top: 12px;
+  padding: 12px;
+  color: #2d2d2d;
+  background: #f3f9ff;
+  border-radius: 8px;
+}
+
+.graph-modal__node-detail h3,
+.graph-modal__node-detail p {
+  margin: 0;
+}
+
+.graph-modal__node-detail p {
+  margin-top: 8px;
+  color: #6f7280;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
 }
 
 @media (max-width: 380px) {

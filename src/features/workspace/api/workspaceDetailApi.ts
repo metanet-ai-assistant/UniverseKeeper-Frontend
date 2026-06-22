@@ -10,6 +10,7 @@ export interface WorkspaceDetailResponse {
 }
 
 export interface WorkspaceEpisodeResponse {
+  episode_id?: number
   episode_no: number
   title: string
   is_conflict: boolean
